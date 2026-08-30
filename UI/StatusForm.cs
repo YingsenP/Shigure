@@ -1691,12 +1691,23 @@ public sealed class StatusForm : Form
                     continue;
                 }
 
-                var summary = string.Join("  ", unitData.Select(kv => $"{kv.Key}: {UiTheme.FormatValue(kv.Value)}"));
+                var summary = string.Join("  ", unitData.Select(kv =>
+                    $"{DisplayPartyFieldName(kv.Key)}: {UiTheme.FormatValue(kv.Value)}"));
                 items.Add(new ListViewItem(new[] { $"Unit {unitKey}", summary }));
             }
         }
 
         ReplaceItems(_partyList, items);
+    }
+
+    private static string DisplayPartyFieldName(string key)
+    {
+        if (!SpellFieldKey.TryParseAuraMember(key, out var spellId, out _))
+        {
+            return key;
+        }
+
+        return SpellIconCatalog.ResolveSuggestionName(spellId, null) ?? key;
     }
 
     private void UpdateUnitInfoList(RenderSnapshot snapshot)
