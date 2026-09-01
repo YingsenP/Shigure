@@ -102,10 +102,6 @@ Fuyutsui.ClassBlocks = {
                 "法力值",
                 "灵魂碎片",
             },
-            ["物品"] = {
-                [5512] = "治疗石",
-                [241304] = "治疗药水",
-            },
             ["目标"] = {
                 "类型",
                 "施法(倒计时)",
@@ -155,6 +151,10 @@ Fuyutsui.ClassBlocks = {
             { spellId = 1276452, name = "魔典：小鬼领主" },
             { spellId = 388215, name = "吞噬魔法" },
             { spellId = 30146, name = "召唤恶魔卫士" },
+        },
+        items = {
+            [5512] = { name = "治疗石", isEquipped = false },
+            [241304] = { name = "治疗药水", isEquipped = false },
         },
     },
     [3] = {

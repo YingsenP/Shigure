@@ -9,7 +9,7 @@ public sealed record ClassConfigPostSaveResult(
     IReadOnlyList<string> ModuleWarnings);
 
 /// <summary>
-/// 图形化编辑 Fuyutsui class/*.lua 的 ClassBlocks（states / auras / spells / group），
+/// 图形化编辑 Fuyutsui class/*.lua 的 ClassBlocks（states / auras / spells / items / group），
 /// 并编辑同文件中的 spellsList。
 /// </summary>
 public sealed class ClassConfigEditorControl : UserControl
@@ -27,12 +27,10 @@ public sealed class ClassConfigEditorControl : UserControl
 
     private readonly DataGridView _statesGrid = new();
     private readonly DataGridViewComboBoxColumn _stateNameColumn = new();
-    private readonly DataGridViewTextBoxColumn _itemIdColumn = new();
-    private readonly DataGridViewTextBoxColumn _itemNameColumn = new();
-    private Control _stateMoveBar = null!;
     private ToolStripDropDown? _stateComboDropDown;
     private readonly DataGridView _aurasGrid = new();
     private readonly DataGridView _spellsGrid = new();
+    private readonly DataGridView _itemsGrid = new();
     private readonly DataGridView _spellsListGrid = new();
     private readonly TextBox _spellsListSearchBox = new();
     private readonly DataGridView _spellDatabaseGrid = new();
@@ -321,14 +319,14 @@ public sealed class ClassConfigEditorControl : UserControl
         {
             Dock = DockStyle.Fill,
             BackColor = UiTheme.Surface,
-            ColumnCount = 5,
+            ColumnCount = 6,
             RowCount = 1,
             Margin = new Padding(0, 0, 0, 8),
             Padding = new Padding(0)
         };
-        for (var i = 0; i < 5; i++)
+        for (var i = 0; i < 6; i++)
         {
-            tabBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
+            tabBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F / 6));
         }
 
         var contentCard = new UiCardPanel
@@ -356,6 +354,7 @@ public sealed class ClassConfigEditorControl : UserControl
             BuildStatesPage(),
             BuildAurasPage(),
             BuildSpellsPage(),
+            BuildItemsPage(),
             BuildGroupPage(),
             BuildSpellsListPage()
         };
@@ -368,13 +367,19 @@ public sealed class ClassConfigEditorControl : UserControl
             contentHost.Controls.Add(page);
         }
 
-        var tabs = new UiPillTab[5];
+        var tabs = new UiPillTab[6];
         var selectedIndex = -1;
         void SelectTab(int index)
         {
             if (selectedIndex == index)
             {
                 return;
+            }
+
+            if (!_suppressUi && selectedIndex == 3)
+            {
+                _itemsGrid.EndEdit();
+                WriteBackItems();
             }
 
             selectedIndex = index;
@@ -390,7 +395,7 @@ public sealed class ClassConfigEditorControl : UserControl
             }
         }
 
-        var titles = new[] { "状态", "光环", "法术", "队伍", "技能列表" };
+        var titles = new[] { "状态", "光环", "法术", "物品", "队伍", "技能列表" };
         for (var i = 0; i < titles.Length; i++)
         {
             var index = i;
@@ -431,16 +436,6 @@ public sealed class ClassConfigEditorControl : UserControl
         _stateNameColumn.FlatStyle = FlatStyle.Flat;
         _stateNameColumn.DisplayStyle = DataGridViewComboBoxDisplayStyle.DropDownButton;
         _statesGrid.Columns.Add(_stateNameColumn);
-        _itemIdColumn.Name = "ItemId";
-        _itemIdColumn.HeaderText = "itemId";
-        _itemIdColumn.Width = 180;
-        _itemIdColumn.Visible = false;
-        _statesGrid.Columns.Add(_itemIdColumn);
-        _itemNameColumn.Name = "ItemName";
-        _itemNameColumn.HeaderText = "名称";
-        _itemNameColumn.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-        _itemNameColumn.Visible = false;
-        _statesGrid.Columns.Add(_itemNameColumn);
         _statesGrid.Columns.Add(CreateDeleteColumn());
         _statesGrid.CellPainting += (_, e) =>
         {
@@ -459,8 +454,50 @@ public sealed class ClassConfigEditorControl : UserControl
         _statesGrid.DataError += (_, e) => e.ThrowException = false;
         _statesGrid.Disposed += (_, _) => CloseStateComboDropDown();
         panel.Controls.Add(_statesGrid, 0, 1);
-        _stateMoveBar = BuildMoveButtons(_statesGrid);
-        panel.Controls.Add(_stateMoveBar, 0, 2);
+        panel.Controls.Add(BuildMoveButtons(_statesGrid), 0, 2);
+        return panel;
+    }
+
+    private Control BuildItemsPage()
+    {
+        var panel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 1,
+            BackColor = UiTheme.SurfaceRaised
+        };
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        ConfigureGrid(_itemsGrid, "class-config-items");
+        _itemsGrid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            Name = "ItemId",
+            HeaderText = "itemId",
+            Width = 180,
+            SortMode = DataGridViewColumnSortMode.NotSortable
+        });
+        _itemsGrid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            Name = "Name",
+            HeaderText = "名称",
+            AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill,
+            SortMode = DataGridViewColumnSortMode.NotSortable
+        });
+        _itemsGrid.Columns.Add(new DataGridViewCheckBoxColumn
+        {
+            Name = "IsEquipped",
+            HeaderText = "是否装备中",
+            Width = 130,
+            FlatStyle = FlatStyle.Flat,
+            SortMode = DataGridViewColumnSortMode.NotSortable
+        });
+        _itemsGrid.Columns.Add(CreateDeleteColumn());
+        _itemsGrid.CellContentClick += HandleDeleteClick;
+        _itemsGrid.CellValueChanged += (_, _) => MarkDirty();
+        _itemsGrid.UserAddedRow += (_, _) => MarkDirty();
+        _itemsGrid.DataError += (_, e) => e.ThrowException = false;
+        panel.Controls.Add(_itemsGrid, 0, 0);
         return panel;
     }
 
@@ -1468,7 +1505,7 @@ public sealed class ClassConfigEditorControl : UserControl
 
         if (!_currentDocument.IsModernFormat)
         {
-            _statusLabel.Text = "此文件仍是旧版稀疏索引格式，请先迁移到 states/auras/spells/group 后再编辑。";
+            _statusLabel.Text = "此文件仍是旧版稀疏索引格式，请先迁移到 states/auras/spells/items/group 后再编辑。";
         }
         else
         {
@@ -1575,6 +1612,7 @@ public sealed class ClassConfigEditorControl : UserControl
             FillStatesGrid();
             FillAurasGrid();
             FillSpellsGrid();
+            FillItemsGrid();
             FillGroupEditors();
         }
         finally
@@ -1593,28 +1631,6 @@ public sealed class ClassConfigEditorControl : UserControl
         }
 
         var category = _selectedStateCategory;
-        var isItemCategory = string.Equals(category, ClassStateCatalog.CategoryItem, StringComparison.Ordinal);
-        _stateNameColumn.Visible = !isItemCategory;
-        _itemIdColumn.Visible = isItemCategory;
-        _itemNameColumn.Visible = isItemCategory;
-        _statesGrid.EditMode = isItemCategory
-            ? DataGridViewEditMode.EditOnEnter
-            : DataGridViewEditMode.EditProgrammatically;
-        _stateMoveBar.Visible = !isItemCategory;
-        if (isItemCategory)
-        {
-            foreach (var item in _currentSpec.Items.OrderBy(item => item.ItemId ?? long.MaxValue))
-            {
-                _statesGrid.Rows.Add(
-                    DBNull.Value,
-                    item.ItemId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
-                    item.Name,
-                    "×");
-            }
-
-            return;
-        }
-
         BindStateNameColumn(ClassStateCatalog.GetAllOptions(category));
         var storageCategory = ClassStateCatalog.GetStorageCategory(category);
         IEnumerable<string> names = _currentSpec.NestedStates
@@ -1627,7 +1643,25 @@ public sealed class ClassConfigEditorControl : UserControl
         foreach (var name in names)
         {
             EnsureStateOptionAvailable(category, name);
-            _statesGrid.Rows.Add(name, DBNull.Value, DBNull.Value, "×");
+            _statesGrid.Rows.Add(name, "×");
+        }
+    }
+
+    private void FillItemsGrid()
+    {
+        _itemsGrid.Rows.Clear();
+        if (_currentSpec is null)
+        {
+            return;
+        }
+
+        foreach (var item in _currentSpec.Items.OrderBy(item => item.ItemId ?? long.MaxValue))
+        {
+            _itemsGrid.Rows.Add(
+                item.ItemId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+                item.Name,
+                item.IsEquipped,
+                "×");
         }
     }
 
@@ -2376,11 +2410,13 @@ public sealed class ClassConfigEditorControl : UserControl
             return;
         }
 
+        _itemsGrid.EndEdit();
         NormalizeFixedStateNames(_currentSpec);
         WriteBackStatesCategory(_lastStateCategory);
 
         WriteBackAuras(_lastAuraBucket);
         WriteBackSpells();
+        WriteBackItems();
         WriteBackGroup();
     }
 
@@ -2586,26 +2622,27 @@ public sealed class ClassConfigEditorControl : UserControl
                 continue;
             }
 
-            if (!spec.NestedStates)
-            {
-                error = $"专精 {specId} 仍使用平面 states，无法保存 itemId 物品配置。";
-                return false;
-            }
-
             var itemIds = new HashSet<long>();
             var itemNames = new HashSet<string>(StringComparer.Ordinal);
             var bareNames = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var category in new[]
-                     {
-                         ClassStateCatalog.CategoryState,
-                         ClassStateCatalog.CategoryResource,
-                         ClassStateCatalog.CategoryConfig
-                     })
+            if (spec.NestedStates)
             {
-                foreach (var name in spec.CategorizedStates.GetValueOrDefault(category) ?? [])
+                foreach (var category in new[]
+                         {
+                             ClassStateCatalog.CategoryState,
+                             ClassStateCatalog.CategoryResource,
+                             ClassStateCatalog.CategoryConfig
+                         })
                 {
-                    bareNames.Add(name);
+                    foreach (var name in spec.CategorizedStates.GetValueOrDefault(category) ?? [])
+                    {
+                        bareNames.Add(name);
+                    }
                 }
+            }
+            else
+            {
+                bareNames.UnionWith(spec.FlatStates);
             }
 
             for (var index = 0; index < spec.Items.Count; index++)
@@ -2651,30 +2688,6 @@ public sealed class ClassConfigEditorControl : UserControl
     {
         if (_currentSpec is null)
         {
-            return;
-        }
-
-        if (string.Equals(category, ClassStateCatalog.CategoryItem, StringComparison.Ordinal))
-        {
-            _currentSpec.Items.Clear();
-            foreach (DataGridViewRow row in _statesGrid.Rows)
-            {
-                if (row.IsNewRow)
-                {
-                    continue;
-                }
-
-                var idText = row.Cells["ItemId"].Value?.ToString()?.Trim();
-                var name = row.Cells["ItemName"].Value?.ToString()?.Trim() ?? string.Empty;
-                long? itemId = long.TryParse(idText, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedId)
-                    ? parsedId
-                    : null;
-                if (itemId is not null || name.Length > 0)
-                {
-                    _currentSpec.Items.Add(new ClassBlocksStore.ItemEntry { ItemId = itemId, Name = name });
-                }
-            }
-
             return;
         }
 
@@ -2767,6 +2780,38 @@ public sealed class ClassConfigEditorControl : UserControl
             }
 
             list.Add(entry);
+        }
+    }
+
+    private void WriteBackItems()
+    {
+        if (_currentSpec is null)
+        {
+            return;
+        }
+
+        _currentSpec.Items.Clear();
+        foreach (DataGridViewRow row in _itemsGrid.Rows)
+        {
+            if (row.IsNewRow)
+            {
+                continue;
+            }
+
+            var idText = row.Cells["ItemId"].Value?.ToString()?.Trim();
+            var name = row.Cells["Name"].Value?.ToString()?.Trim() ?? string.Empty;
+            long? itemId = long.TryParse(idText, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedId)
+                ? parsedId
+                : null;
+            if (itemId is not null || name.Length > 0)
+            {
+                _currentSpec.Items.Add(new ClassBlocksStore.ItemEntry
+                {
+                    ItemId = itemId,
+                    Name = name,
+                    IsEquipped = row.Cells["IsEquipped"].Value is true
+                });
+            }
         }
     }
 
@@ -2887,6 +2932,7 @@ public sealed class ClassConfigEditorControl : UserControl
         {
             _spellsListGrid.EndEdit();
             _statesGrid.EndEdit();
+            _itemsGrid.EndEdit();
             if (!TryValidateSpellsList(out var validationError))
             {
                 MessageBox.Show(validationError, "技能列表", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -3000,6 +3046,7 @@ public sealed class ClassConfigEditorControl : UserControl
         _statesGrid.Rows.Clear();
         _aurasGrid.Rows.Clear();
         _spellsGrid.Rows.Clear();
+        _itemsGrid.Rows.Clear();
         _spellsListGrid.Rows.Clear();
         _spellsListSearchBox.Clear();
         _groupAurasGrid.Rows.Clear();

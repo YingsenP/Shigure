@@ -273,9 +273,15 @@ function Fuyutsui:UpdateSpellCooldown()
     end
 end
 
-function Fuyutsui:GetItemRemainingTime(itemID)
-    local itemCount = itemID and C_Item.GetItemCount(itemID)
-    if not itemCount or itemCount <= 0 then
+function Fuyutsui:GetItemRemainingTime(itemID, isEquipped)
+    local itemExists
+    if isEquipped then
+        itemExists = itemID and C_Item.IsEquippedItem(itemID)
+    else
+        local itemCount = itemID and C_Item.GetItemCount(itemID)
+        itemExists = itemCount and itemCount > 0
+    end
+    if not itemExists then
         return 255
     end
     local startTimeSeconds, durationSeconds, enableCooldownTimer = C_Item.GetItemCooldown(itemID)
@@ -295,6 +301,6 @@ function Fuyutsui:UpdateItemCooldown()
     local items = self.blocks and self.blocks.items
     if not items then return end
     for itemID, info in pairs(items) do
-        self:CreateTexture(info.index, self:GetItemRemainingTime(itemID) / 255)
+        self:CreateTexture(info.index, self:GetItemRemainingTime(itemID, info.isEquipped) / 255)
     end
 end

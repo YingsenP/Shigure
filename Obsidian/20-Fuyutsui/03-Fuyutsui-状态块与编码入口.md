@@ -53,7 +53,7 @@ verified_at: 2026-08-09
 
 | 输入 | 处理 | 输出 |
 |---|---|---|
-| 当前专精的 `ClassBlocks` | 依次展开状态、光环、法术和队伍定义 | `Fuyutsui.blocks` 索引表 |
+| 当前专精的 `ClassBlocks` | 依次展开状态、光环、法术、物品和队伍定义 | `Fuyutsui.blocks` 索引表 |
 | 状态 getter 返回的归一化数值 | `CreateTexture(index, b)` | 顶部主状态行 RGB 像素 |
 | `castCount`、`maxCharge`、光环 `maxApps` | 自动预留水平单元 | `FuyutsuiCountBars` |
 | 队伍治疗吸收百分比 | 按成员槽位绘制锚点、100 单元条身和终点 | `FuyutsuiHealAbsorbBars` |
@@ -64,7 +64,7 @@ verified_at: 2026-08-09
 ```text
 ClassBlocks[spec]
   -> LoadPlayerBlocks(spec)
-     -> blocks.state / blocks.auras / blocks.spells / blocks.groups
+     -> blocks.state / blocks.auras / blocks.spells / blocks.items / blocks.groups
      -> 释放并重建 AuraContainer
   -> UpdatePlayerBlocks() 与各事件处理器
      -> UpdateStateBlock(category, name)
@@ -93,13 +93,14 @@ ClassBlocks[spec]
 
 从索引 4 开始严格按以下顺序追加：
 
-1. 状态分类：`状态`、`能量`、`物品`、`配置开关`、`目标`、`焦点`。
+1. 状态分类：`状态`、`能量`、`配置开关`、`目标`、`焦点`、`鼠标`、`宠物`、`首领1`～`首领5`。
 2. 玩家光环。
 3. 目标有害、目标增益、焦点有害、焦点增益光环。
 4. 法术冷却；普通法术占 1 槽，带 `charge=true` 的法术连续占冷却与充能 2 槽。
-5. 队伍块只记录此时的 `start`；成员 `n` 的字段偏移为 `start + (n-1)*group.num + offset`。
+5. 顶层 `items` 按 `itemId` 升序占位，每项同时进入 `blocks.state` 与 `blocks.items`。
+6. 队伍块只记录此时的 `start`；成员 `n` 的字段偏移为 `start + (n-1)*group.num + offset`。
 
-前四个状态分类使用裸名称作为 `blocks.state` 键；目标和焦点使用 `分类 .. 名称`。这使同一裸名称在前四类之间发生覆盖，而不是获得两个独立可寻址键。
+前三个状态分类使用裸名称作为 `blocks.state` 键；单位分类使用 `分类 .. 名称`。物品名称同样是裸键，因此不能与已有裸状态重名。
 
 ## 510 槽 RGB 契约
 
@@ -142,7 +143,7 @@ Lua 传给 `SetColorTexture` 时再除以 255。因此第 255 槽是 `(0,255,B)`
 - Lua 与 C# 必须使用完全相同的状态分类顺序、光环顺序和法术占槽规则。
 - 主行每个有效索引必须在 1..510；超界时 `createTextureByIndex()` 返回 `nil`，不会自动扩容。
 - `blocks.spells` 以 SpellID 为键；同一专精内 SpellID 必须唯一，否则后项覆盖前项索引。
-- 裸状态键在 `状态/能量/物品/配置开关` 之间必须唯一；目标和焦点因带前缀可以同名。
+- 裸状态键在 `状态/能量/配置开关/items` 之间必须唯一；单位分类因带前缀可以同名。
 - 横向条的预留顺序必须与 C# 配置转换和扫描顺序一致。
 - 队伍容量必须同时满足 `group.start + memberCount*group.num - 1 <= 510` 与消费端支持的成员数。目前 Shigure 构建固定 30 人，并不覆盖 WoW 团队最多 40 人。
 - 旧审计记录只说明历史问题；判断当前契约必须回到上述源文件与当前生成配置。

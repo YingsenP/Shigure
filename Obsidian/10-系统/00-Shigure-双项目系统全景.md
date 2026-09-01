@@ -100,7 +100,7 @@ verified_at: "2026-08-10"
 
 1. `Fuyutsui.toc` 按固定顺序加载核心、职业声明、领域模块和 `main.lua`。
 2. `ADDON_LOADED` / `PLAYER_LOGIN` 触发 `OnInitialize` 与 `OnEnable`；事件和 `OnUpdate` 更新玩家、目标、法术、队伍等状态。
-3. `LoadPlayerBlocks` 把当前专精 `states → auras → spells → group` 分配到连续主色块索引；`core/block.lua` 将值画到屏幕。
+3. `LoadPlayerBlocks` 把当前专精 `states → auras → spells → items → group` 分配到连续主色块索引；`core/block.lua` 将值画到屏幕。
 4. `PixelScanner.ScanScreenData` 使用 `CopyFromScreen` 采集顶部行、CountBars 标记行和治疗吸收网格。
 5. `StateBuilder.Build` 先从主色块第 2、3 格识别职业和专精，再由 `ConfigService.BuildStateConfig` 合并配置并构建 `GameState`。
 6. `LogicRegistry.Evaluate` 优先执行选定或最匹配 module；没有模块时才回退到 C# 职业逻辑或默认逻辑。

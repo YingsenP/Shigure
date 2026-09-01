@@ -29,9 +29,6 @@ Fuyutsui.ClassBlocks = {
             ["能量"] = {
                 "漩涡值",
             },
-            ["物品"] = {
-                [241304] = "治疗药水",
-            },
             ["配置开关"] = {
                 "爆发开关",
                 "延迟",
@@ -116,6 +113,9 @@ Fuyutsui.ClassBlocks = {
             { spellId = 470057, name = "流电炽焰" },
             { spellId = 191634, name = "风暴守护者" },
             { spellId = 443454, name = "先祖迅捷" },
+        },
+        items = {
+            [241304] = { name = "治疗药水", isEquipped = false },
         },
     },
     [2] = {

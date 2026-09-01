@@ -6,7 +6,7 @@ using static Shigure.LuaLiteParser;
 namespace Shigure;
 
 /// <summary>
-/// 读写 Fuyutsui class/*.lua 中的 ClassBlocks（states/auras/spells/group），
+/// 读写 Fuyutsui class/*.lua 中的 ClassBlocks（states/auras/spells/items/group），
 /// 同时读写 spellsList；保存时替换 ClassBlocks 表字面量，并原位更新 spellsList 中已编辑的条目。
 /// </summary>
 internal static class ClassBlocksStore
@@ -17,7 +17,6 @@ internal static class ClassBlocksStore
     [
         ClassStateCatalog.CategoryState,
         ClassStateCatalog.CategoryResource,
-        ClassStateCatalog.CategoryItem,
         ClassStateCatalog.CategoryConfig,
         ClassStateCatalog.CategoryTarget,
         ClassStateCatalog.CategoryFocus,
@@ -60,7 +59,6 @@ internal static class ClassBlocksStore
         {
             [ClassStateCatalog.CategoryState] = new List<string>(),
             [ClassStateCatalog.CategoryResource] = new List<string>(),
-            [ClassStateCatalog.CategoryItem] = new List<string>(),
             [ClassStateCatalog.CategoryConfig] = new List<string>(),
             [ClassStateCatalog.CategoryTarget] = new List<string>(),
             [ClassStateCatalog.CategoryFocus] = new List<string>(),
@@ -238,6 +236,7 @@ internal static class ClassBlocksStore
     {
         public long? ItemId { get; set; }
         public string Name { get; set; } = string.Empty;
+        public bool IsEquipped { get; set; }
     }
 
     private static string UpdateSpellsListEntries(
@@ -365,6 +364,7 @@ internal static class ClassBlocksStore
         isModern = spec.GetTable("states") is not null
             || spec.GetTable("auras") is not null
             || spec.GetTable("spells") is not null
+            || spec.GetTable("items") is not null
             || spec.GetTable("group") is not null;
 
         if (!isModern)
@@ -382,12 +382,6 @@ internal static class ClassBlocksStore
                 {
                     if (states.GetTable(category) is not { } list)
                     {
-                        continue;
-                    }
-
-                    if (string.Equals(category, ClassStateCatalog.CategoryItem, StringComparison.Ordinal))
-                    {
-                        AppendItems(list, result.Items);
                         continue;
                     }
 
@@ -467,6 +461,11 @@ internal static class ClassBlocksStore
             }
         }
 
+        if (spec.GetTable("items") is { } items)
+        {
+            AppendItems(items, result.Items);
+        }
+
         if (spec.GetTable("group") is { } group)
         {
             var groupBlocks = new GroupBlocks
@@ -521,34 +520,30 @@ internal static class ClassBlocksStore
 
     private static void AppendItems(TableValue list, List<ItemEntry> target)
     {
-        var arrayValues = list.IPairs().ToList();
         var seenIds = new HashSet<long>();
-        foreach (var item in arrayValues)
-        {
-            if (item is not StringValue nameValue || string.IsNullOrWhiteSpace(nameValue.Value))
-            {
-                continue;
-            }
-
-            var name = nameValue.Value.Trim();
-            long? itemId = ClassStateCatalog.TryGetLegacyItemId(name, out var knownId) ? knownId : null;
-            if (itemId is null || seenIds.Add(itemId.Value))
-            {
-                target.Add(new ItemEntry { ItemId = itemId, Name = name });
-            }
-        }
-
-        var arrayCount = arrayValues.Count;
         foreach (var (key, value) in list.Entries)
         {
-            if (key is not long itemId || itemId <= arrayCount
-                || value is not StringValue nameValue || string.IsNullOrWhiteSpace(nameValue.Value)
+            if (key is not long itemId
+                || itemId <= 0
+                || value is not TableValue itemTable
                 || !seenIds.Add(itemId))
             {
                 continue;
             }
 
-            target.Add(new ItemEntry { ItemId = itemId, Name = nameValue.Value.Trim() });
+            var name = itemTable.GetString("name")?.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                seenIds.Remove(itemId);
+                continue;
+            }
+
+            target.Add(new ItemEntry
+            {
+                ItemId = itemId,
+                Name = name,
+                IsEquipped = itemTable.GetBool("isEquipped") == true
+            });
         }
 
         target.Sort((left, right) => CompareItemIds(left.ItemId, right.ItemId));
@@ -627,29 +622,6 @@ internal static class ClassBlocksStore
         {
             foreach (var category in StateCategories)
             {
-                if (string.Equals(category, ClassStateCatalog.CategoryItem, StringComparison.Ordinal))
-                {
-                    if (spec.Items.Count == 0)
-                    {
-                        continue;
-                    }
-
-                    sb.Append(indent).Append("    [\"").Append(Escape(category)).AppendLine("\"] = {");
-                    foreach (var item in spec.Items.OrderBy(item => item.ItemId))
-                    {
-                        if (item.ItemId is not { } itemId || itemId <= 0 || string.IsNullOrWhiteSpace(item.Name))
-                        {
-                            throw new InvalidOperationException("物品配置包含无效的 itemId 或空名称。");
-                        }
-
-                        sb.Append(indent).Append("        [").Append(itemId).Append("] = \"")
-                            .Append(Escape(item.Name)).AppendLine("\",");
-                    }
-
-                    sb.Append(indent).AppendLine("    },");
-                    continue;
-                }
-
                 var list = spec.CategorizedStates.GetValueOrDefault(category);
                 if (list is null || list.Count == 0)
                 {
@@ -733,6 +705,25 @@ internal static class ClassBlocksStore
             sb.Append(indent).AppendLine("},");
         }
 
+        // items
+        if (spec.Items.Count > 0)
+        {
+            sb.Append(indent).AppendLine("items = {");
+            foreach (var item in spec.Items.OrderBy(item => item.ItemId))
+            {
+                if (item.ItemId is not { } itemId || itemId <= 0 || string.IsNullOrWhiteSpace(item.Name))
+                {
+                    throw new InvalidOperationException("物品配置包含无效的 itemId 或空名称。");
+                }
+
+                sb.Append(indent).Append("    [").Append(itemId).Append("] = { name = \"")
+                    .Append(Escape(item.Name)).Append("\", isEquipped = ")
+                    .Append(item.IsEquipped ? "true" : "false").AppendLine(" },");
+            }
+
+            sb.Append(indent).AppendLine("},");
+        }
+
         // group
         if (spec.Group is { } group)
         {
@@ -782,22 +773,24 @@ internal static class ClassBlocksStore
             return;
         }
 
-        if (!spec.NestedStates)
-        {
-            throw new InvalidOperationException("平面 states 无法保存 itemId 物品配置。");
-        }
-
         var ids = new HashSet<long>();
         var names = new HashSet<string>(StringComparer.Ordinal);
         var bareNames = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var category in new[]
-                 {
-                     ClassStateCatalog.CategoryState,
-                     ClassStateCatalog.CategoryResource,
-                     ClassStateCatalog.CategoryConfig
-                 })
+        if (spec.NestedStates)
         {
-            bareNames.UnionWith(spec.CategorizedStates.GetValueOrDefault(category) ?? []);
+            foreach (var category in new[]
+                     {
+                         ClassStateCatalog.CategoryState,
+                         ClassStateCatalog.CategoryResource,
+                         ClassStateCatalog.CategoryConfig
+                     })
+            {
+                bareNames.UnionWith(spec.CategorizedStates.GetValueOrDefault(category) ?? []);
+            }
+        }
+        else
+        {
+            bareNames.UnionWith(spec.FlatStates);
         }
 
         foreach (var item in spec.Items)

@@ -528,6 +528,7 @@ function Fuyutsui:OnUpdate(elapsed)
     end
 
     RunUpdateSafely(self, "RefreshPlayerCastStateBlocks")
+    RunUpdateSafely(self, "UpdateStateBlock", "状态", "公共冷却")
     RunUpdateSafely(self, "RefreshUnitCastStateBlocks", "target")
     RunUpdateSafely(self, "RefreshUnitCastStateBlocks", "focus")
     RunUpdateSafely(self, "RefreshUnitCastStateBlocks", "mouseover")

@@ -26,9 +26,6 @@ Fuyutsui.ClassBlocks = {
             ["能量"] = {
                 "怒气值",
             },
-            ["物品"] = {
-                [241288] = "鲁莽药水",
-            },
             ["配置开关"] = {
                 "爆发开关",
                 "输出模式",
@@ -124,6 +121,9 @@ Fuyutsui.ClassBlocks = {
             { spellId = 227847, name = "剑刃风暴" },
             { spellId = 260708, name = "横扫攻击" },
             { spellId = 228920, name = "破坏者" },
+        },
+        items = {
+            [241288] = { name = "鲁莽药水", isEquipped = false },
         },
     },
     [2] = {

@@ -107,11 +107,6 @@ Fuyutsui.ClassBlocks = {
             ["能量"] = {
                 "恶魔之怒",
             },
-            ["物品"] = {
-                [5512] = "治疗石",
-                [241288] = "鲁莽药水",
-                [241308] = "圣光潜力",
-            },
             ["配置开关"] = {
                 "爆发开关",
                 "爆发药水开关",
@@ -190,6 +185,11 @@ Fuyutsui.ClassBlocks = {
             { spellId = 179057, name = "混乱新星" },
             { spellId = 207407, name = "灵魂切削" },
             { spellId = 202137, name = "沉默咒符" },
+        },
+        items = {
+            [5512] = { name = "治疗石", isEquipped = false },
+            [241288] = { name = "鲁莽药水", isEquipped = false },
+            [241308] = { name = "圣光潜力", isEquipped = false },
         },
     },
     [3] = {

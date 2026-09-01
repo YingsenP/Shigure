@@ -1557,15 +1557,42 @@ public sealed class ModuleEditorControl : UserControl
     {
         if (e.RowIndex < 0
             || e.ColumnIndex < 0
-            || _adjustmentsGrid.Rows[e.RowIndex].IsNewRow
-            || _adjustmentsGrid.Columns[e.ColumnIndex].Name != "Condition")
+            || _adjustmentsGrid.Rows[e.RowIndex].IsNewRow)
         {
             return;
         }
 
-        // 动态数值条件沿用规则表的名称化显示；单元格底层仍保留 spellId 表达式供保存和运行。
-        e.Value = FormatConditionExpressionForDisplay(e.Value?.ToString());
-        e.FormattingApplied = true;
+        var columnName = _adjustmentsGrid.Columns[e.ColumnIndex].Name;
+        if (columnName == "Field")
+        {
+            // 调整目标只显示字段名称；单元格底层继续保存结构化 spellId 键。
+            e.Value = FormatAdjustmentFieldForDisplay(e.Value?.ToString());
+            e.FormattingApplied = true;
+        }
+        else if (columnName == "Condition")
+        {
+            // 动态数值条件沿用规则表的名称化显示；单元格底层仍保留 spellId 表达式供保存和运行。
+            e.Value = FormatConditionExpressionForDisplay(e.Value?.ToString());
+            e.FormattingApplied = true;
+        }
+    }
+
+    private string FormatAdjustmentFieldForDisplay(string? field)
+    {
+        var source = field?.Trim() ?? string.Empty;
+        var normalized = NormalizeConditionFieldName(source);
+        var isSpellReference = SpellFieldKey.TryParseSpell(normalized, out var spellId, out _);
+        var isAuraReference = !isSpellReference
+            && (SpellFieldKey.TryParseAura(normalized, out _, out spellId, out _)
+                || SpellFieldKey.TryParseAuraMember(normalized, out spellId, out _));
+        if (!isSpellReference && !isAuraReference)
+        {
+            return source;
+        }
+
+        return ResolveConditionFieldDisplayName(normalized, spellId)
+               ?? ResolveConditionSpellName(spellId, normalized)
+               ?? source;
     }
 
     private IReadOnlyList<ConditionField> BuildAdjustmentFields()
@@ -2845,20 +2872,24 @@ public sealed class ModuleEditorControl : UserControl
         else
         {
             var category = ReadAdjustmentType(row);
-            var values = BuildAdjustmentFields()
+            var fields = BuildAdjustmentFields()
                 .Where(field => category is null || field.Category == category)
-                .Select(field => field.Name)
-                .Prepend(string.Empty)
-                .Distinct(StringComparer.Ordinal)
+                .GroupBy(field => field.Name, StringComparer.Ordinal)
+                .Select(group => group.First())
                 .ToList();
-            if (!values.Contains(currentValue, StringComparer.Ordinal))
+            options = fields
+                .Select(field => new UiDropDownOption(
+                    field.Name,
+                    FormatAdjustmentFieldForDisplay(field.Name)))
+                .Prepend(new UiDropDownOption(string.Empty, string.Empty))
+                .ToList();
+            if (!string.IsNullOrEmpty(currentValue)
+                && !fields.Any(field => string.Equals(field.Name, currentValue, StringComparison.Ordinal)))
             {
-                values.Insert(0, currentValue);
+                options.Insert(0, new UiDropDownOption(
+                    currentValue,
+                    FormatAdjustmentFieldForDisplay(currentValue)));
             }
-
-            options = values
-                .Select(value => new UiDropDownOption(value, value))
-                .ToList();
         }
 
         var cellBounds = _adjustmentsGrid.GetCellDisplayRectangle(columnIndex, rowIndex, cutOverflow: true);

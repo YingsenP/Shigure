@@ -30,12 +30,6 @@ Fuyutsui.ClassBlocks = {
             ["能量"] = {
                 "法力值",
             },
-            ["物品"] = {
-                [5512] = "治疗石",
-                [241288] = "鲁莽药水",
-                [241301] = "魔法药水",
-                [241304] = "治疗药水",
-            },
             ["配置开关"] = {
                 "延迟",
             },
@@ -108,6 +102,12 @@ Fuyutsui.ClassBlocks = {
             { spellId = 1235211, name = "暗影分流" },
             { spellId = 586, name = "渐隐术" },
         },
+        items = {
+            [5512] = { name = "治疗石", isEquipped = false },
+            [241288] = { name = "鲁莽药水", isEquipped = false },
+            [241301] = { name = "魔法药水", isEquipped = false },
+            [241304] = { name = "治疗药水", isEquipped = false },
+        },
         group = {
             num = 5,
             healthPercent = 1,
@@ -146,9 +146,6 @@ Fuyutsui.ClassBlocks = {
             },
             ["能量"] = {
                 "法力值",
-            },
-            ["物品"] = {
-                [241304] = "治疗药水",
             },
             ["配置开关"] = {
                 "延迟",
@@ -226,6 +223,9 @@ Fuyutsui.ClassBlocks = {
             { spellId = 64843, name = "神圣赞美诗" },
             { spellId = 586, name = "渐隐术" },
             { spellId = 528, name = "驱散魔法" },
+        },
+        items = {
+            [241304] = { name = "治疗药水", isEquipped = false },
         },
         group = {
             num = 5,

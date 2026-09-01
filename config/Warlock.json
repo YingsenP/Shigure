@@ -524,121 +524,123 @@
       "type": "int",
       "category": "能量"
     },
-    "治疗石": {
-      "step": 23,
-      "type": "int",
-      "category": "物品",
-      "itemId": 5512
-    },
-    "治疗药水": {
-      "step": 24,
-      "type": "int",
-      "category": "物品",
-      "itemId": 241304
-    },
     "目标类型": {
-      "step": 25,
+      "step": 23,
       "type": "int",
       "category": "目标"
     },
     "目标施法(倒计时)": {
-      "step": 26,
+      "step": 24,
       "type": "int",
       "category": "目标"
     },
     "目标施法(正计时)": {
-      "step": 27,
+      "step": 25,
       "type": "int",
       "category": "目标"
     },
     "目标施法可打断": {
-      "step": 28,
+      "step": 26,
       "type": "int",
       "category": "目标"
     },
     "目标引导": {
-      "step": 29,
+      "step": 27,
       "type": "int",
       "category": "目标"
     },
     "目标引导可打断": {
-      "step": 30,
+      "step": 28,
       "type": "int",
       "category": "目标"
     },
     "焦点施法(倒计时)": {
-      "step": 31,
+      "step": 29,
       "type": "int",
       "category": "焦点"
     },
     "焦点施法(正计时)": {
-      "step": 32,
+      "step": 30,
       "type": "int",
       "category": "焦点"
     },
     "焦点施法可打断": {
-      "step": 33,
+      "step": 31,
       "type": "int",
       "category": "焦点"
     },
     "焦点引导": {
-      "step": 34,
+      "step": 32,
       "type": "int",
       "category": "焦点"
     },
     "焦点引导可打断": {
-      "step": 35,
+      "step": 33,
       "type": "int",
       "category": "焦点"
     },
     "鼠标类型": {
-      "step": 36,
+      "step": 34,
       "type": "int",
       "category": "鼠标"
     },
     "鼠标驱散类型": {
-      "step": 37,
+      "step": 35,
       "type": "int",
       "category": "鼠标"
     },
     "鼠标生命值": {
-      "step": 38,
+      "step": 36,
       "type": "int",
       "category": "鼠标"
     },
     "鼠标距离": {
-      "step": 39,
+      "step": 37,
       "type": "int",
       "category": "鼠标"
     },
     "鼠标施法(倒计时)": {
-      "step": 40,
+      "step": 38,
       "type": "int",
       "category": "鼠标"
     },
     "鼠标施法(正计时)": {
-      "step": 41,
+      "step": 39,
       "type": "int",
       "category": "鼠标"
     },
     "鼠标施法可打断": {
-      "step": 42,
+      "step": 40,
       "type": "int",
       "category": "鼠标"
     },
     "鼠标引导": {
-      "step": 43,
+      "step": 41,
       "type": "int",
       "category": "鼠标"
     },
     "鼠标引导可打断": {
-      "step": 44,
+      "step": 42,
       "type": "int",
       "category": "鼠标"
     },
+    "治疗石": {
+      "step": 64,
+      "type": "int",
+      "category": "物品",
+      "itemId": 5512,
+      "isEquipped": false
+    },
+    "治疗药水": {
+      "step": 65,
+      "type": "int",
+      "category": "物品",
+      "itemId": 241304,
+      "isEquipped": false
+    },
     "spells": {
       "5782.cooldown": {
-        "step": 45,
+        "step": 43,
         "type": "int",
         "displayName": "恐惧",
         "spellId": 5782,
@@ -646,7 +648,7 @@
         "displayType": "冷却"
       },
       "6789.cooldown": {
-        "step": 46,
+        "step": 44,
         "type": "int",
         "displayName": "死亡缠绕",
         "spellId": 6789,
@@ -654,7 +656,7 @@
         "displayType": "冷却"
       },
       "20707.cooldown": {
-        "step": 47,
+        "step": 45,
         "type": "int",
         "displayName": "灵魂石",
         "spellId": 20707,
@@ -662,7 +664,7 @@
         "displayType": "冷却"
       },
       "30283.cooldown": {
-        "step": 48,
+        "step": 46,
         "type": "int",
         "displayName": "暗影之怒",
         "spellId": 30283,
@@ -670,7 +672,7 @@
         "displayType": "冷却"
       },
       "333889.cooldown": {
-        "step": 49,
+        "step": 47,
         "type": "int",
         "displayName": "邪能统御",
         "spellId": 333889,
@@ -678,7 +680,7 @@
         "displayType": "冷却"
       },
       "108416.cooldown": {
-        "step": 50,
+        "step": 48,
         "type": "int",
         "displayName": "黑暗契约",
         "spellId": 108416,
@@ -686,7 +688,7 @@
         "displayType": "冷却"
       },
       "111771.cooldown": {
-        "step": 51,
+        "step": 49,
         "type": "int",
         "displayName": "恶魔传送门",
         "spellId": 111771,
@@ -694,7 +696,7 @@
         "displayType": "冷却"
       },
       "127174.cooldown": {
-        "step": 52,
+        "step": 50,
         "type": "int",
         "displayName": "虚弱灾厄",
         "spellId": 127174,
@@ -702,7 +704,7 @@
         "displayType": "冷却"
       },
       "1271802.cooldown": {
-        "step": 53,
+        "step": 51,
         "type": "int",
         "displayName": "语言灾厄",
         "spellId": 1271802,
@@ -710,7 +712,7 @@
         "displayType": "冷却"
       },
       "48018.cooldown": {
-        "step": 54,
+        "step": 52,
         "type": "int",
         "displayName": "恶魔法阵",
         "spellId": 48018,
@@ -718,7 +720,7 @@
         "displayType": "冷却"
       },
       "48020.cooldown": {
-        "step": 55,
+        "step": 53,
         "type": "int",
         "displayName": "恶魔法阵：传送",
         "spellId": 48020,
@@ -726,7 +728,7 @@
         "displayType": "冷却"
       },
       "196277.cooldown": {
-        "step": 56,
+        "step": 54,
         "type": "int",
         "displayName": "内爆",
         "spellId": 196277,
@@ -743,7 +745,7 @@
         "displayType": "施法次数"
       },
       "265187.cooldown": {
-        "step": 57,
+        "step": 55,
         "type": "int",
         "displayName": "召唤恶魔暴君",
         "spellId": 265187,
@@ -751,7 +753,7 @@
         "displayType": "冷却"
       },
       "1276467.cooldown": {
-        "step": 58,
+        "step": 56,
         "type": "int",
         "displayName": "魔典：邪能破坏者",
         "spellId": 1276467,
@@ -759,7 +761,7 @@
         "displayType": "冷却"
       },
       "105174.cooldown": {
-        "step": 59,
+        "step": 57,
         "type": "int",
         "displayName": "古尔丹之手",
         "spellId": 105174,
@@ -767,7 +769,7 @@
         "displayType": "冷却"
       },
       "1276672.cooldown": {
-        "step": 60,
+        "step": 58,
         "type": "int",
         "displayName": "召唤末日守卫",
         "spellId": 1276672,
@@ -775,7 +777,7 @@
         "displayType": "冷却"
       },
       "104316.cooldown": {
-        "step": 61,
+        "step": 59,
         "type": "int",
         "displayName": "召唤恐惧猎犬",
         "spellId": 104316,
@@ -783,7 +785,7 @@
         "displayType": "冷却"
       },
       "264187.cooldown": {
-        "step": 62,
+        "step": 60,
         "type": "int",
         "displayName": "恶魔之箭",
         "spellId": 264187,
@@ -791,7 +793,7 @@
         "displayType": "冷却"
       },
       "1276452.cooldown": {
-        "step": 63,
+        "step": 61,
         "type": "int",
         "displayName": "魔典：小鬼领主",
         "spellId": 1276452,
@@ -799,7 +801,7 @@
         "displayType": "冷却"
       },
       "388215.cooldown": {
-        "step": 64,
+        "step": 62,
         "type": "int",
         "displayName": "吞噬魔法",
         "spellId": 388215,
@@ -807,7 +809,7 @@
         "displayType": "冷却"
       },
       "30146.cooldown": {
-        "step": 65,
+        "step": 63,
         "type": "int",
         "displayName": "召唤恶魔卫士",
         "spellId": 30146,

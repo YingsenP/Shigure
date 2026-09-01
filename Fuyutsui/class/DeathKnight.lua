@@ -34,12 +34,7 @@ Fuyutsui.ClassBlocks = {
                 "符文能量",
                 "符文",
             },
-            ["物品"] = {
-                [5512] = "治疗石",
-                [123456] = "物品名称",
-                [241288] = "鲁莽药水",
-                [241308] = "圣光潜力",
-            },
+
             ["配置开关"] = {
                 "爆发开关",
                 "爆发药水开关",
@@ -116,6 +111,12 @@ Fuyutsui.ClassBlocks = {
             { spellId = 43265, name = "枯萎凋零", charge = true, maxCharge = 2 },
             { spellId = 49028, name = "符文刃舞" },
         },
+        items = {
+            [5512] = { name = "治疗石", isEquipped = false },
+            [123456] = { name = "物品名称", isEquipped = true },
+            [241288] = { name = "鲁莽药水", isEquipped = false },
+            [241308] = { name = "圣光潜力", isEquipped = false },
+        },
     },
     [2] = {
         states = {
@@ -145,9 +146,6 @@ Fuyutsui.ClassBlocks = {
             ["能量"] = {
                 "符文能量",
                 "符文",
-            },
-            ["物品"] = {
-                [241288] = "鲁莽药水",
             },
             ["配置开关"] = {
                 "爆发开关",
@@ -211,6 +209,9 @@ Fuyutsui.ClassBlocks = {
             { spellId = 1249658, name = "冰龙吐息" },
             { spellId = 47528, name = "心灵冰冻" },
         },
+        items = {
+            [241288] = { name = "鲁莽药水", isEquipped = false },
+        },
     },
     [3] = {
         states = {
@@ -242,10 +243,6 @@ Fuyutsui.ClassBlocks = {
             ["能量"] = {
                 "符文",
                 "符文能量",
-            },
-            ["物品"] = {
-                [241288] = "鲁莽药水",
-                [241304] = "治疗药水",
             },
             ["配置开关"] = {
                 "延迟",
@@ -300,6 +297,10 @@ Fuyutsui.ClassBlocks = {
             { spellId = 343294, name = "灵魂收割" },
             { spellId = 43265, name = "枯萎凋零", charge = true, maxCharge = 2 },
             { spellId = 55090, name = "天灾打击", castCount = 20 },
+        },
+        items = {
+            [241288] = { name = "鲁莽药水", isEquipped = false },
+            [241304] = { name = "治疗药水", isEquipped = false },
         },
     },
 }

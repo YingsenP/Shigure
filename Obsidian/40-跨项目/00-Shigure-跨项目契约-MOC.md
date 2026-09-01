@@ -63,7 +63,7 @@ verified_at: "2026-08-10"
 | 契约 | 生产输入 | 传输载体 | 消费输出 |
 |---|---|---|---|
 | 像素 | `Fuyutsui.blocks`、状态值、光环和队伍数据 | 屏幕 RGB：主行、CountBars、吸收网格 | `RowData`、`BarData`、`HealAbsorbData` |
-| ClassBlocks | `class/*.lua` 中各专精的 `states/auras/spells/group` | Lua 表 → `config/*.json` | `StateBuilder` 可使用的 `step/type/bar/group` 映射 |
+| ClassBlocks | `class/*.lua` 中各专精的 `states/auras/spells/items/group` | Lua 表 → `config/*.json` | `StateBuilder` 可使用的 `step/type/bar/group` 映射 |
 | ClassMacros | `core/classmacros.lua` 的 dynamic/static/special 数据 | Lua 表 → `keymap/*.json` + WoW 覆盖绑定 | `(专精、单位、技能、宏条件) → hotkey` |
 
 三条契约最终汇合到 Shigure 的决策路径：原始像素通过 config 变成 `GameState`，module 从 `GameState` 选出技能和单位，再通过 keymap 解析 hotkey。
@@ -107,7 +107,7 @@ verified_at: "2026-08-10"
 | 计划修改 | 必须进入 |
 |---|---|
 | RGB、像素数量、标记色、条宽高、网格行列 | [[40-跨项目/01-Shigure-像素生产消费契约|像素契约]] |
-| `states/auras/spells/group` 格式、顺序、占位 | [[40-跨项目/02-Shigure-ClassBlocks到config同步契约|ClassBlocks 契约]] |
+| `states/auras/spells/items/group` 格式、顺序、占位 | [[40-跨项目/02-Shigure-ClassBlocks到config同步契约|ClassBlocks 契约]] |
 | dynamic/static/special 规则、宏键池、单位或条件 | [[40-跨项目/03-Shigure-ClassMacros到keymap与按键契约|宏与热键契约]] |
 | 任意共享名称、版本、路径或生成方式 | [[40-跨项目/04-Shigure-兼容性变更检查清单|兼容性检查清单]] |
 

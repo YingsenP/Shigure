@@ -7,7 +7,6 @@ internal sealed class ModuleDependencyService
     [
         ClassStateCatalog.CategoryState,
         ClassStateCatalog.CategoryResource,
-        ClassStateCatalog.CategoryItem,
         ClassStateCatalog.CategoryConfig,
         ClassStateCatalog.CategoryTarget,
         ClassStateCatalog.CategoryFocus,
@@ -328,15 +327,22 @@ internal sealed class ModuleDependencyService
 
         var items = snapshot.Config.Spec.Items ?? [];
         var itemReservedNames = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var category in new[]
-                 {
-                     ClassStateCatalog.CategoryState,
-                     ClassStateCatalog.CategoryResource,
-                     ClassStateCatalog.CategoryConfig
-                 })
+        if (snapshot.Config.Spec.NestedStates)
         {
-            itemReservedNames.UnionWith(
-                snapshot.Config.Spec.CategorizedStates.GetValueOrDefault(category) ?? []);
+            foreach (var category in new[]
+                     {
+                         ClassStateCatalog.CategoryState,
+                         ClassStateCatalog.CategoryResource,
+                         ClassStateCatalog.CategoryConfig
+                     })
+            {
+                itemReservedNames.UnionWith(
+                    snapshot.Config.Spec.CategorizedStates.GetValueOrDefault(category) ?? []);
+            }
+        }
+        else
+        {
+            itemReservedNames.UnionWith(snapshot.Config.Spec.FlatStates ?? []);
         }
         if (items.Any(item => item.ItemId <= 0 || string.IsNullOrWhiteSpace(item.Name))
             || items.Select(item => item.ItemId).Distinct().Count() != items.Count
@@ -368,10 +374,12 @@ internal sealed class ModuleDependencyService
                 if (ClassStateCatalog.TryGetLegacyItemId(name, out var itemId)
                     && spec.Items.All(item => item.ItemId != itemId))
                 {
-                    spec.Items.Add(new ModuleItemSnapshot { ItemId = itemId, Name = name });
+                    spec.Items.Add(new ModuleItemSnapshot { ItemId = itemId, Name = name, IsEquipped = false });
                     legacyNames.Remove(name);
                 }
             }
+
+            spec.CategorizedStates.Remove(ClassStateCatalog.CategoryItem);
         }
 
         snapshot.SchemaVersion = ModuleDependencySnapshot.CurrentSchemaVersion;
@@ -459,7 +467,12 @@ internal sealed class ModuleDependencyService
             StringComparer.Ordinal),
         Items = spec.Items
             .Where(item => item.ItemId is > 0 && !string.IsNullOrWhiteSpace(item.Name))
-            .Select(item => new ModuleItemSnapshot { ItemId = item.ItemId!.Value, Name = item.Name })
+            .Select(item => new ModuleItemSnapshot
+            {
+                ItemId = item.ItemId!.Value,
+                Name = item.Name,
+                IsEquipped = item.IsEquipped
+            })
             .ToList(),
         PlayerAuras = spec.PlayerAuras.Select(CaptureAura).ToList(),
         TargetHarmfulAuras = spec.TargetHarmfulAuras.Select(CaptureAura).ToList(),
@@ -517,10 +530,6 @@ internal sealed class ModuleDependencyService
             {
                 foreach (var category in StateCategories)
                 {
-                    if (string.Equals(category, ClassStateCatalog.CategoryItem, StringComparison.Ordinal))
-                    {
-                        continue;
-                    }
                     MergeStrings(local.CategorizedStates[category], incoming.CategorizedStates.GetValueOrDefault(category) ?? [], counters);
                 }
             }
@@ -535,10 +544,6 @@ internal sealed class ModuleDependencyService
             {
                 foreach (var category in StateCategories)
                 {
-                    if (string.Equals(category, ClassStateCatalog.CategoryItem, StringComparison.Ordinal))
-                    {
-                        continue;
-                    }
                     MergeStrings(local.FlatStates, incoming.CategorizedStates.GetValueOrDefault(category) ?? [], counters);
                 }
             }
@@ -549,9 +554,9 @@ internal sealed class ModuleDependencyService
         }
 
 
+        var reservedNames = new HashSet<string>(StringComparer.Ordinal);
         if (local.NestedStates)
         {
-            var reservedNames = new HashSet<string>(StringComparer.Ordinal);
             foreach (var category in new[]
                      {
                          ClassStateCatalog.CategoryState,
@@ -561,12 +566,12 @@ internal sealed class ModuleDependencyService
             {
                 reservedNames.UnionWith(local.CategorizedStates.GetValueOrDefault(category) ?? []);
             }
-            MergeItems(local.Items, incoming.Items ?? [], reservedNames, counters);
         }
-        else if ((incoming.Items ?? []).Count > 0)
+        else
         {
-            counters.Conflicts.Add("本地配置仍使用平面 states，无法导入 itemId 物品配置。");
+            reservedNames.UnionWith(local.FlatStates);
         }
+        MergeItems(local.Items, incoming.Items ?? [], reservedNames, counters);
 
         MergeAuras(local.PlayerAuras, incoming.PlayerAuras, "玩家光环", counters);
         MergeAuras(local.TargetHarmfulAuras, incoming.TargetHarmfulAuras, "目标减益", counters);
@@ -810,6 +815,11 @@ internal sealed class ModuleDependencyService
                     counters.Conflicts.Add(
                         $"物品 itemId {item.ItemId} 的名称不同：本地“{byId.Name}”、模块“{item.Name}”，已保留本地。");
                 }
+                else if (byId.IsEquipped != item.IsEquipped)
+                {
+                    counters.Conflicts.Add(
+                        $"物品“{item.Name}”的 isEquipped 不同：本地 {byId.IsEquipped}、模块 {item.IsEquipped}，已保留本地。");
+                }
                 continue;
             }
 
@@ -827,7 +837,12 @@ internal sealed class ModuleDependencyService
                 continue;
             }
 
-            local.Add(new ClassBlocksStore.ItemEntry { ItemId = item.ItemId, Name = item.Name });
+            local.Add(new ClassBlocksStore.ItemEntry
+            {
+                ItemId = item.ItemId,
+                Name = item.Name,
+                IsEquipped = item.IsEquipped
+            });
             counters.ConfigAdded++;
         }
 

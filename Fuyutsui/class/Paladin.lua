@@ -34,9 +34,6 @@ Fuyutsui.ClassBlocks = {
                 "法力值",
                 "神圣能量",
             },
-            ["物品"] = {
-                [241304] = "治疗药水",
-            },
             ["配置开关"] = {
                 "爆发开关",
                 "延迟",
@@ -114,6 +111,9 @@ Fuyutsui.ClassBlocks = {
             { spellId = 432459, name = "神圣壁垒", charge = true, maxCharge = 2 },
             { spellId = 391054, name = "代祷" },
         },
+        items = {
+            [241304] = { name = "治疗药水", isEquipped = false },
+        },
         group = {
             num = 6,
             healthPercent = 1,
@@ -153,12 +153,6 @@ Fuyutsui.ClassBlocks = {
             ["能量"] = {
                 "法力值",
                 "神圣能量",
-            },
-            ["物品"] = {
-                [5512] = "治疗石",
-                [241288] = "鲁莽药水",
-                [241304] = "治疗药水",
-                [241308] = "圣光潜力",
             },
             ["配置开关"] = {
                 "延迟",
@@ -230,6 +224,12 @@ Fuyutsui.ClassBlocks = {
             { spellId = 633, name = "圣疗术" },
             { spellId = 24275, name = "愤怒之锤" },
         },
+        items = {
+            [5512] = { name = "治疗石", isEquipped = false },
+            [241288] = { name = "鲁莽药水", isEquipped = false },
+            [241304] = { name = "治疗药水", isEquipped = false },
+            [241308] = { name = "圣光潜力", isEquipped = false },
+        },
         group = {
             num = 3,
             healthPercent = 1,
@@ -264,9 +264,6 @@ Fuyutsui.ClassBlocks = {
             ["能量"] = {
                 "法力值",
                 "神圣能量",
-            },
-            ["物品"] = {
-                [241304] = "治疗药水",
             },
             ["配置开关"] = {
                 "爆发开关",
@@ -317,6 +314,9 @@ Fuyutsui.ClassBlocks = {
             { spellId = 343527, name = "处决宣判" },
             { spellId = 255937, name = "灰烬觉醒" },
             { spellId = 31884, name = "复仇之怒" },
+        },
+        items = {
+            [241304] = { name = "治疗药水", isEquipped = false },
         },
         group = {
             num = 3,
