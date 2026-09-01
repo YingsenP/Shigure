@@ -37,7 +37,8 @@ internal enum SettingsNavIcon
 
 internal sealed record BossNumberOption(int Number, string Dungeon, string Name);
 
-internal sealed record StateFieldDisplay(string Name, string SpellId, string Type);
+internal sealed record StateFieldDisplay(string Name, string SpellId, string Type, long IconId = 0, bool IsItem = false);
+internal sealed record StatusListIcon(long Id, bool IsItem);
 
 public sealed class StatusForm : Form
 {
@@ -45,7 +46,58 @@ public sealed class StatusForm : Form
     private const int AboutWatermarkSize = 440;
     private const int AboutWatermarkTopMargin = 16;
     private const float AboutWatermarkOpacity = 0.08F;
+    private const int AboutCardWidth = 1200;
     private const int BossNumberCardWidth = 400;
+    private const int AboutScaleIconSize = 18;
+
+    private const string AboutDisclaimerText =
+        """
+        1. 合规责任
+
+        Shigure 仅供技术研究、学习交流和个人实验使用。下载、安装、复制、修改、分发或使用本软件前，用户应自行确认相关行为符合所在地法律法规，以及目标软件、游戏平台或服务提供商的用户协议、服务条款和社区规则。
+
+        2. 账号与处罚风险
+
+        本软件可能涉及窗口状态读取、按键发送或自动化辅助流程。此类行为可能被游戏运营商、反作弊系统或相关服务提供商认定为违规，并导致账号限制、角色封禁、数据丢失、收益回收或其他处罚。用户应充分了解并自行承担全部风险，开发者不对由此产生的任何后果负责。
+
+        3. 无担保声明
+
+        本项目基于 MIT License 开源发布。软件按“原样”（AS IS）提供，不对稳定性、准确性、完整性、安全性、兼容性、持续可用性或特定用途适用性作出任何明示或暗示保证。因使用或无法使用本软件导致的直接、间接、偶然、特殊或后续损失，均由用户自行承担。
+
+        4. 商业使用与衍生版本
+
+        MIT License 允许在遵守许可证条件的前提下复制、修改、分发和商业使用本软件。任何第三方对本软件或其衍生版本的运营、销售、推广、技术支持或其他商业利用，均由该第三方独立负责。开发者不代表、不授权或保证任何第三方产品、服务或运营活动，也不对第三方的违法行为、违反平台规则的行为或由此产生的后果负责。
+        但本声明不限制适用法律所规定的责任，也不构成对任何具体行为合法性的保证。
+
+        5. 使用即表示接受
+
+        使用者应在使用前阅读并理解本免责声明及 MIT License。开始使用本软件，表示使用者已获得必要授权，并将自行承担使用本软件产生的风险；但仅通过使用行为是否构成法律上的合同接受，应以适用法律及实际使用场景为准。
+        """;
+
+    private const string AboutMitLicenseText =
+        """
+        MIT License
+
+        Copyright (c) 2026 waynebian01
+
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        """;
 
     private static readonly IReadOnlyList<string> CurrentSeasonDungeonNames =
     [
@@ -239,7 +291,9 @@ public sealed class StatusForm : Form
     public StatusForm()
     {
         InitializeComponent();
-        UiTheme.SetListViewSubItemIconResolver(_stateList, ResolveStateListIcon);
+        UiTheme.SetListViewSubItemIconResolver(_stateList, ResolveStatusListIcon);
+        UiTheme.SetListViewSubItemIconResolver(_auraList, ResolveStatusListIcon);
+        UiTheme.SetListViewSubItemIconResolver(_spellList, ResolveStatusListIcon);
         SpellIconCatalog.CatalogChanged += OnSpellIconCatalogChanged;
     }
 
@@ -288,10 +342,21 @@ public sealed class StatusForm : Form
         base.OnFormClosing(e);
     }
 
-    private static Image? ResolveStateListIcon(ListViewItem item, int columnIndex)
-        => columnIndex == 1 && item.Tag is long itemId && itemId > 0
-            ? SpellIconCatalog.GetItem(itemId)
-            : null;
+    private static Image? ResolveStatusListIcon(ListViewItem item, int columnIndex)
+    {
+        if (columnIndex != 1)
+        {
+            return null;
+        }
+
+        return item.Tag switch
+        {
+            StatusListIcon { IsItem: true, Id: var itemId } when itemId > 0 => SpellIconCatalog.GetItem(itemId),
+            StatusListIcon { Id: var spellId } when spellId > 0 => SpellIconCatalog.Get(spellId),
+            long itemId when itemId > 0 => SpellIconCatalog.GetItem(itemId),
+            _ => null
+        };
+    }
 
     private void OnSpellIconCatalogChanged()
     {
@@ -307,6 +372,8 @@ public sealed class StatusForm : Form
         }
 
         _stateList.Invalidate();
+        _auraList.Invalidate();
+        _spellList.Invalidate();
     }
 
     private void InitializeComponent()
@@ -408,7 +475,7 @@ public sealed class StatusForm : Form
         AddNavItem(nav, SettingsPage.BossNumbers, SettingsNavIcon.BossNumbers, "首领", CreatePageShell("首领编号", "副本首领的序号、名称与扫描编号", BuildBossNumbersPage()));
         AddNavItem(nav, SettingsPage.CommonFields, SettingsNavIcon.CommonFields, "字段", CreatePageShell("常用字段", "模块条件可用的状态字段参考", BuildCommonFieldsPanel()));
         AddNavGroup(nav, "系统");
-        AddNavItem(nav, SettingsPage.About, SettingsNavIcon.About, "关于", CreatePageShell("关于", "应用信息", _aboutHost));
+        AddNavItem(nav, SettingsPage.About, SettingsNavIcon.About, "关于", CreatePageShell("关于", "应用信息、免责声明与许可证", _aboutHost));
         _aboutHost.Controls.Add(BuildAboutPanel());
 
         root.Controls.Add(navShell, 0, 0);
@@ -1114,26 +1181,30 @@ public sealed class StatusForm : Form
 
         var panel = new TableLayoutPanel
         {
-            Dock = DockStyle.Top,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             BackColor = Color.Transparent,
             ColumnCount = 1,
-            RowCount = 1,
+            RowCount = 3,
+            Location = Point.Empty,
             Padding = new Padding(0),
             Margin = new Padding(0)
         };
+        ApplyAboutCardWidth(panel);
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, AboutCardWidth));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var infoCard = new UiCardPanel
         {
             AutoSize = true,
-            Dock = DockStyle.Top,
             ColumnCount = 1,
             RowCount = 2,
             Padding = new Padding(UiTheme.CardPadding),
-            Margin = new Padding(0)
+            Margin = new Padding(0, 0, 0, UiTheme.PageGap)
         };
+        ApplyAboutCardWidth(infoCard);
         infoCard.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         infoCard.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
@@ -1164,6 +1235,7 @@ public sealed class StatusForm : Form
             ForeColor = UiTheme.Muted,
             BackColor = Color.Transparent,
             Font = new Font(Font.FontFamily, 9.5F, FontStyle.Regular),
+            MaximumSize = new Size(GetAboutCardInnerWidth(), 0),
             Margin = new Padding(0)
         }, 0, 1);
         infoCard.Controls.Add(heading, 0, 0);
@@ -1197,9 +1269,81 @@ public sealed class StatusForm : Form
         AddAboutRow(details, "配置目录", FormatAboutPath(configPath), configPath);
         infoCard.Controls.Add(details, 0, 1);
         panel.Controls.Add(infoCard, 0, 0);
-
+        panel.Controls.Add(CreateAboutArticleCard("免责声明", AboutDisclaimerText), 0, 1);
+        panel.Controls.Add(CreateAboutArticleCard("许可证", AboutMitLicenseText), 0, 2);
         scrollHost.Controls.Add(panel);
         return scrollHost;
+    }
+
+    private static void ApplyAboutCardWidth(Control card)
+    {
+        card.Dock = DockStyle.None;
+        card.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+        card.Width = AboutCardWidth;
+        card.MinimumSize = new Size(AboutCardWidth, 0);
+        card.MaximumSize = new Size(AboutCardWidth, 0);
+    }
+
+    private static int GetAboutCardInnerWidth()
+        => Math.Max(80, AboutCardWidth - UiTheme.CardPadding * 2);
+
+    private Control CreateAboutArticleCard(string title, string body)
+    {
+        var card = new UiCardPanel
+        {
+            AutoSize = true,
+            ColumnCount = 1,
+            RowCount = 2,
+            Padding = new Padding(UiTheme.CardPadding),
+            Margin = new Padding(0, 0, 0, UiTheme.PageGap)
+        };
+        ApplyAboutCardWidth(card);
+        card.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        card.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        var heading = new TableLayoutPanel
+        {
+            AutoSize = true,
+            Dock = DockStyle.Top,
+            BackColor = Color.Transparent,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = new Padding(0, 0, 0, 8)
+        };
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, AboutScaleIconSize + 6));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        heading.Controls.Add(new AboutScaleIcon
+        {
+            Width = AboutScaleIconSize,
+            Height = AboutScaleIconSize,
+            Margin = new Padding(0, 1, 6, 0)
+        }, 0, 0);
+        heading.Controls.Add(new Label
+        {
+            Text = title,
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            ForeColor = UiTheme.Accent,
+            BackColor = Color.Transparent,
+            Font = new Font(Font.FontFamily, 10F, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Margin = new Padding(0)
+        }, 1, 0);
+        card.Controls.Add(heading, 0, 0);
+
+        var bodyLabel = new Label
+        {
+            Text = body,
+            AutoSize = true,
+            Dock = DockStyle.Top,
+            ForeColor = UiTheme.Text,
+            BackColor = Color.Transparent,
+            Font = new Font(Font.FontFamily, 9F, FontStyle.Regular),
+            MaximumSize = new Size(GetAboutCardInnerWidth(), 0),
+            Margin = new Padding(0)
+        };
+        card.Controls.Add(bodyLabel, 0, 1);
+        return card;
     }
 
     private Control BuildCommonFieldsPanel()
@@ -1372,6 +1516,61 @@ public sealed class StatusForm : Form
         };
         _toolTip.SetToolTip(valueLabel, tooltip ?? value);
         panel.Controls.Add(valueLabel, 1, row);
+    }
+
+    private sealed class AboutScaleIcon : Control
+    {
+        public AboutScaleIcon()
+        {
+            SetStyle(
+                ControlStyles.AllPaintingInWmPaint
+                | ControlStyles.OptimizedDoubleBuffer
+                | ControlStyles.ResizeRedraw
+                | ControlStyles.SupportsTransparentBackColor
+                | ControlStyles.UserPaint,
+                true);
+            BackColor = Color.Transparent;
+            Size = new Size(AboutScaleIconSize, AboutScaleIconSize);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            var graphics = e.Graphics;
+            graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+
+            var w = Math.Max(1, Width - 1);
+            var h = Math.Max(1, Height - 1);
+            using var pen = new Pen(UiTheme.Accent, 1.4F)
+            {
+                StartCap = LineCap.Round,
+                EndCap = LineCap.Round,
+                LineJoin = LineJoin.Round
+            };
+
+            var fulcrum = new PointF(w * 0.50F, h * 0.18F);
+            var leftHang = new PointF(w * 0.20F, h * 0.22F);
+            var rightHang = new PointF(w * 0.80F, h * 0.22F);
+            graphics.DrawLine(pen, leftHang, fulcrum);
+            graphics.DrawLine(pen, fulcrum, rightHang);
+            graphics.DrawLine(pen, fulcrum, new PointF(w * 0.50F, h * 0.78F));
+            graphics.DrawLine(pen, new PointF(w * 0.32F, h * 0.88F), new PointF(w * 0.68F, h * 0.88F));
+
+            DrawPan(graphics, pen, leftHang, w * 0.18F, h * 0.42F);
+            DrawPan(graphics, pen, rightHang, w * 0.18F, h * 0.42F);
+        }
+
+        private static void DrawPan(Graphics graphics, Pen pen, PointF hang, float panHalfWidth, float panHeight)
+        {
+            var panTop = hang.Y + panHeight * 0.28F;
+            var panBottom = hang.Y + panHeight;
+            graphics.DrawLine(pen, hang, new PointF(hang.X, panTop));
+            graphics.DrawLines(pen, [
+                new PointF(hang.X - panHalfWidth, panTop),
+                new PointF(hang.X, panBottom),
+                new PointF(hang.X + panHalfWidth, panTop)]);
+        }
     }
 
     private sealed class WatermarkPanel : Panel
@@ -1552,19 +1751,14 @@ public sealed class StatusForm : Form
             foreach (var (key, value) in snapshot.State.Values)
             {
                 if (key is "spells" or "auras" or "group"
-                    || key.StartsWith('$'))
+                    || key.StartsWith('$')
+                    || snapshot.State.ItemIds.ContainsKey(key))
                 {
                     continue;
                 }
 
                 index++;
-                var row = new ListViewItem(new[] { index.ToString(), key, UiTheme.FormatValue(value) });
-                if (snapshot.State.ItemIds.TryGetValue(key, out var itemId))
-                {
-                    row.Tag = itemId;
-                }
-
-                items.Add(row);
+                items.Add(new ListViewItem(new[] { index.ToString(), key, UiTheme.FormatValue(value) }));
             }
         }
 
@@ -1581,14 +1775,7 @@ public sealed class StatusForm : Form
             {
                 index++;
                 var display = DescribeAuraState(key);
-                items.Add(new ListViewItem(new[]
-                {
-                    index.ToString(),
-                    display.Name,
-                    display.SpellId,
-                    display.Type,
-                    UiTheme.FormatValue(value)
-                }));
+                items.Add(CreateNamedStateRow(index, display, value));
             }
         }
 
@@ -1625,26 +1812,33 @@ public sealed class StatusForm : Form
     private void UpdateSpellList(RenderSnapshot snapshot)
     {
         var items = new List<ListViewItem>();
-        if (snapshot.State is null || snapshot.State.Spells.Count == 0)
+        var index = 0;
+        if (snapshot.State is not null)
         {
-            items.Add(new ListViewItem(new[] { "-", "技能", "-", "-", "无数据" }));
-        }
-        else
-        {
-            var index = 0;
             foreach (var (key, value) in snapshot.State.Spells)
             {
                 index++;
-                var display = DescribeSpellState(snapshot.State, key);
-                items.Add(new ListViewItem(new[]
-                {
-                    index.ToString(),
-                    display.Name,
-                    display.SpellId,
-                    display.Type,
-                    UiTheme.FormatValue(value)
-                }));
+                items.Add(CreateNamedStateRow(index, DescribeSpellState(snapshot.State, key), value));
             }
+
+            foreach (var (name, itemId) in snapshot.State.ItemIds)
+            {
+                if (!snapshot.State.Values.TryGetValue(name, out var value))
+                {
+                    continue;
+                }
+
+                index++;
+                items.Add(CreateNamedStateRow(
+                    index,
+                    new StateFieldDisplay(name, itemId.ToString(), "冷却", itemId, IsItem: true),
+                    value));
+            }
+        }
+
+        if (items.Count == 0)
+        {
+            items.Add(new ListViewItem(new[] { "-", "技能", "-", "-", "无数据" }));
         }
 
         ReplaceItems(_spellList, items);
@@ -1708,7 +1902,25 @@ public sealed class StatusForm : Form
     private static StateFieldDisplay CreateStateFieldDisplay(long spellId, string type)
     {
         var name = SpellIconCatalog.ResolveSuggestionName(spellId, null) ?? "未知法术";
-        return new StateFieldDisplay(name, spellId.ToString(), type);
+        return new StateFieldDisplay(name, spellId.ToString(), type, spellId);
+    }
+
+    private static ListViewItem CreateNamedStateRow(int index, StateFieldDisplay display, object? value)
+    {
+        var row = new ListViewItem(new[]
+        {
+            index.ToString(),
+            display.Name,
+            display.SpellId,
+            display.Type,
+            UiTheme.FormatValue(value)
+        });
+        if (display.IconId > 0)
+        {
+            row.Tag = new StatusListIcon(display.IconId, display.IsItem);
+        }
+
+        return row;
     }
 
     private void UpdatePartyList(RenderSnapshot snapshot)
