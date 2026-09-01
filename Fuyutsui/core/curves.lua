@@ -53,4 +53,4 @@ Fuyutsui.groupHealthCurves = {
 }
 Fuyutsui.curve255 = Fuyutsui:CreateColorCurve(255, 255)
 Fuyutsui.castCurve = Fuyutsui:CreateColorCurve(25.5, 255)
-Fuyutsui.curveMs = Fuyutsui:CreateColorCurve(0.255, 255)
+Fuyutsui.curveMs = Fuyutsui:CreateColorCurve(2.55, 255)

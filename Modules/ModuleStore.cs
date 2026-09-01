@@ -801,10 +801,13 @@ public static class ModuleLogic
     {
         var info = CreateInfo(module, state);
         var spellIndices = keymap.GetCurrentSpellIndices();
-        var unitSlots = ResolveDynamicFields(module, state, spellIndices);
+        var itemIndices = keymap.GetCurrentItemIndices();
+        var unitSlots = ResolveDynamicFields(module, state, spellIndices, itemIndices);
         var failedSpells = keymap.GetCurrentFailedSpells();
         var oneKeySpells = keymap.GetCurrentOneKeySpells();
+        var insertItems = keymap.GetCurrentInsertItems();
         var spellNames = keymap.GetCurrentSpellNames();
+        var itemNames = keymap.GetCurrentItemNames();
 
         for (var ruleIndex = 0; ruleIndex < module.Rules.Count; ruleIndex++)
         {
@@ -821,7 +824,9 @@ public static class ModuleLogic
                     out var conditionMatched,
                     out var error,
                     failedSpells,
-                    spellIndices))
+                    spellIndices,
+                    itemIndices,
+                    insertItems))
             {
                 info["条件错误"] = error;
                 info["规则条件"] = rule.DescribeCondition();
@@ -860,6 +865,7 @@ public static class ModuleLogic
             long? actionSpellId = null;
             var actionSpellName = rule.Spell.Trim();
             var isOneKeySpell = false;
+            var isFailedItem = false;
             if (ModuleSpecialActions.IsFailedSpell(rule.Spell))
             {
                 actionSpellId = ModuleSpecialActions.GetFailedSpell(state, failedSpells);
@@ -868,6 +874,19 @@ public static class ModuleLogic
                     continue;
                 }
                 if (!spellNames.TryGetValue(actionSpellId.Value, out actionSpellName))
+                {
+                    continue;
+                }
+            }
+            else if (ModuleSpecialActions.IsFailedItem(rule.Spell))
+            {
+                isFailedItem = true;
+                actionSpellId = ModuleSpecialActions.GetFailedItem(state, insertItems);
+                if (actionSpellId is null)
+                {
+                    continue;
+                }
+                if (!itemNames.TryGetValue(actionSpellId.Value, out actionSpellName))
                 {
                     continue;
                 }
@@ -897,7 +916,7 @@ public static class ModuleLogic
 
             var resolvedMacroCondition = rule.MacroCondition;
             var hotkey = string.IsNullOrWhiteSpace(rule.Hotkey)
-                ? actionSpellId is { } id
+                ? actionSpellId is { } id && !isFailedItem
                     ? keymap.GetHotkey(resolvedUnit, id, resolvedMacroCondition)
                     : keymap.GetHotkey(resolvedUnit, actionSpellName, resolvedMacroCondition)
                 : rule.Hotkey.Trim();
@@ -959,7 +978,8 @@ public static class ModuleLogic
     public static Dictionary<string, string?> ResolveDynamicFields(
         ModuleDefinition module,
         GameState state,
-        IReadOnlyDictionary<long, int>? spellIndices = null)
+        IReadOnlyDictionary<long, int>? spellIndices = null,
+        IReadOnlyDictionary<long, int>? itemIndices = null)
     {
         if (IsDynamicFieldsResolved(module, state)
             && state.Values.TryGetValue("$units", out var existingUnitsObj)
@@ -972,6 +992,7 @@ public static class ModuleLogic
             module,
             state,
             spellIndices,
+            itemIndices,
             adjustment => IsEarlyThresholdAdjustment(module, state, adjustment));
         var unitSlots = ResolveUnits(module, state);
         ResolveCounts(module, state);
@@ -979,6 +1000,7 @@ public static class ModuleLogic
             module,
             state,
             spellIndices,
+            itemIndices,
             adjustment => !earlyAppliedAdjustments.Contains(adjustment));
         state.Values["$dynamicModuleId"] = module.Id;
         return unitSlots;
@@ -1038,6 +1060,7 @@ public static class ModuleLogic
         ModuleDefinition module,
         GameState state,
         IReadOnlyDictionary<long, int>? spellIndices,
+        IReadOnlyDictionary<long, int>? itemIndices = null,
         Func<ModuleValueAdjustment, bool>? include = null)
     {
         var applied = new HashSet<ModuleValueAdjustment>();
@@ -1059,7 +1082,8 @@ public static class ModuleLogic
                     state,
                     out var matched,
                     out _,
-                    spellIndices: spellIndices)
+                    spellIndices: spellIndices,
+                    itemIndices: itemIndices)
                 || !matched)
             {
                 continue;
@@ -1323,7 +1347,9 @@ public static class ModuleConditionEvaluator
         out bool matched,
         out string? error,
         IReadOnlyDictionary<int, long>? failedSpells = null,
-        IReadOnlyDictionary<long, int>? spellIndices = null)
+        IReadOnlyDictionary<long, int>? spellIndices = null,
+        IReadOnlyDictionary<long, int>? itemIndices = null,
+        IReadOnlyDictionary<int, long>? insertItems = null)
     {
         matched = false;
         error = null;
@@ -1345,7 +1371,9 @@ public static class ModuleConditionEvaluator
                         out var termMatched,
                         out error,
                         failedSpells,
-                        spellIndices))
+                        spellIndices,
+                        itemIndices,
+                        insertItems))
                 {
                     return false;
                 }
@@ -1376,9 +1404,11 @@ public static class ModuleConditionEvaluator
         out bool matched,
         out string? error,
         IReadOnlyDictionary<int, long>? failedSpells = null,
-        IReadOnlyDictionary<long, int>? spellIndices = null)
+        IReadOnlyDictionary<long, int>? spellIndices = null,
+        IReadOnlyDictionary<long, int>? itemIndices = null,
+        IReadOnlyDictionary<int, long>? insertItems = null)
     {
-        if (!TryEvaluate(rule.Condition, state, out matched, out error, failedSpells, spellIndices))
+        if (!TryEvaluate(rule.Condition, state, out matched, out error, failedSpells, spellIndices, itemIndices, insertItems))
         {
             return false;
         }
@@ -1395,7 +1425,7 @@ public static class ModuleConditionEvaluator
                 continue;
             }
 
-            if (!TryEvaluate(sub, state, out var subMatched, out error, failedSpells, spellIndices))
+            if (!TryEvaluate(sub, state, out var subMatched, out error, failedSpells, spellIndices, itemIndices, insertItems))
             {
                 matched = false;
                 return false;
@@ -1433,7 +1463,9 @@ public static class ModuleConditionEvaluator
         out bool matched,
         out string? error,
         IReadOnlyDictionary<int, long>? failedSpells,
-        IReadOnlyDictionary<long, int>? spellIndices)
+        IReadOnlyDictionary<long, int>? spellIndices,
+        IReadOnlyDictionary<long, int>? itemIndices,
+        IReadOnlyDictionary<int, long>? insertItems)
     {
         matched = false;
         error = null;
@@ -1448,13 +1480,13 @@ public static class ModuleConditionEvaluator
         if (inMatch.Success)
         {
             var inField = inMatch.Groups["field"].Value.Trim();
-            if (SpellIdConditionFields.Contains(inField))
+            if (SpellIdConditionFields.Contains(inField) || ItemIdConditionFields.Contains(inField))
             {
                 error = $"{inField} 仅支持 == 或 != 判断。";
                 return false;
             }
 
-            var inLeft = ResolveValue(state, inField, failedSpells);
+            var inLeft = ResolveValue(state, inField, failedSpells, insertItems);
             if (inLeft is null && IsStructuredSpellReference(inField))
             {
                 matched = false;
@@ -1470,7 +1502,7 @@ public static class ModuleConditionEvaluator
         {
             var invert = trimmed.StartsWith('!');
             var fieldName = invert ? trimmed[1..].Trim() : trimmed;
-            var value = ResolveValue(state, fieldName, failedSpells);
+            var value = ResolveValue(state, fieldName, failedSpells, insertItems);
             if (value is null && IsStructuredSpellReference(fieldName))
             {
                 matched = false;
@@ -1481,7 +1513,7 @@ public static class ModuleConditionEvaluator
         }
 
         var comparisonField = comparison.Groups["field"].Value.Trim();
-        var left = ResolveValue(state, comparisonField, failedSpells);
+        var left = ResolveValue(state, comparisonField, failedSpells, insertItems);
         if (left is null && IsStructuredSpellReference(comparisonField))
         {
             matched = false;
@@ -1506,6 +1538,24 @@ public static class ModuleConditionEvaluator
             }
 
             right = localIndex;
+        }
+        else if (ItemIdConditionFields.Contains(comparisonField))
+        {
+            if (op is not ("==" or "!="))
+            {
+                error = $"{comparisonField} 仅支持 == 或 != 判断。";
+                return false;
+            }
+
+            if (!TryToInt64(right, out var itemId)
+                || itemIndices is null
+                || !itemIndices.TryGetValue(itemId, out var localItemIndex))
+            {
+                matched = false;
+                return true;
+            }
+
+            right = localItemIndex;
         }
 
         return TryCompare(left, op, right, out matched, out error);
@@ -1550,7 +1600,8 @@ public static class ModuleConditionEvaluator
     private static object? ResolveValue(
         GameState state,
         string fieldName,
-        IReadOnlyDictionary<int, long>? failedSpells = null)
+        IReadOnlyDictionary<int, long>? failedSpells = null,
+        IReadOnlyDictionary<int, long>? insertItems = null)
     {
         var key = fieldName.Trim();
         if (key.StartsWith("state.", StringComparison.OrdinalIgnoreCase))
@@ -1581,6 +1632,11 @@ public static class ModuleConditionEvaluator
         if (ModuleSpecialActions.IsFailedSpell(key))
         {
             return ModuleSpecialActions.GetFailedSpell(state, failedSpells);
+        }
+
+        if (ModuleSpecialActions.IsFailedItem(key))
+        {
+            return ModuleSpecialActions.GetFailedItem(state, insertItems);
         }
 
         if (key.StartsWith("group.", StringComparison.OrdinalIgnoreCase))

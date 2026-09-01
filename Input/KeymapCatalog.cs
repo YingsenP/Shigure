@@ -120,6 +120,33 @@ public sealed class KeymapCatalog
         }
     }
 
+    public IReadOnlyCollection<string> GetFailedItemNames(int? classId)
+    {
+        if (classId is null || _config is null)
+        {
+            return [];
+        }
+
+        var ids = _config.GetInsertItems(classId).Values.ToHashSet();
+        var path = Path.Combine(
+            _baseDirectory,
+            "Fuyutsui",
+            "class",
+            $"{ClassNames.GetConfigFileName(classId.Value)}.lua");
+        try
+        {
+            return ClassBlocksStore.Load(path).ItemsList
+                .Where(item => ids.Contains(item.ItemId) && !string.IsNullOrWhiteSpace(item.Name))
+                .Select(item => item.Name.Trim())
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
     private KeymapEntries GetEntries(int? classId)
     {
         var path = ResolveKeymapPath(classId);

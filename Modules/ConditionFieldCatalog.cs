@@ -42,6 +42,17 @@ public sealed record ConditionSpell(long SpellId, int Index, string Name)
     public string DisplayName => $"{Name} / {SpellId}";
 }
 
+public sealed record ConditionItem(long ItemId, int Index, string Name)
+{
+    public string DisplayName => $"{Name} / {ItemId}";
+}
+
+public static class CooldownConditionClassifications
+{
+    public const string Spell = "技能";
+    public const string Item = "物品";
+}
+
 public static class SpellIdConditionFields
 {
     public const string OneKeyAssist = "一键辅助";
@@ -55,6 +66,27 @@ public static class SpellIdConditionFields
         InsertSpell,
         CastingSpell,
         PreviousSpell
+    };
+
+    public static bool Contains(string? fieldName)
+    {
+        var normalized = fieldName?.Trim() ?? string.Empty;
+        if (normalized.StartsWith("state.", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = normalized["state.".Length..];
+        }
+
+        return Names.Contains(normalized);
+    }
+}
+
+public static class ItemIdConditionFields
+{
+    public const string InsertItem = "插入物品";
+
+    private static readonly HashSet<string> Names = new(StringComparer.Ordinal)
+    {
+        InsertItem
     };
 
     public static bool Contains(string? fieldName)
@@ -135,6 +167,25 @@ public sealed class ConditionFieldCatalog
 
             if (node is JsonObject field && field.ContainsKey("step"))
             {
+                var classification = ReadClassification(field)
+                    ?? sourceClassifications.GetValueOrDefault(key)
+                    ?? InferStateClassification(key);
+                var itemId = ReadItemId(field);
+                if (IsItemCooldownField(itemId, classification))
+                {
+                    var displayName = ReadDisplayName(field) ?? key;
+                    AddField(
+                        fields,
+                        seen,
+                        key,
+                        itemId is > 0 ? $"{displayName} / {itemId}" : displayName,
+                        ReadType(field),
+                        ConditionFieldCategory.Spell,
+                        CooldownConditionClassifications.Item,
+                        itemId);
+                    continue;
+                }
+
                 AddField(
                     fields,
                     seen,
@@ -142,10 +193,8 @@ public sealed class ConditionFieldCatalog
                     key,
                     ReadType(field),
                     ConditionFieldCategory.State,
-                    ReadClassification(field)
-                        ?? sourceClassifications.GetValueOrDefault(key)
-                        ?? InferStateClassification(key),
-                    ReadItemId(field));
+                    classification,
+                    itemId);
             }
         }
 
@@ -181,9 +230,10 @@ public sealed class ConditionFieldCatalog
                         fields,
                         seen,
                         $"spells.{spellName}",
-                        $"技能: {displayName} / {ReadSpellId(field)?.ToString() ?? "?"}",
+                        $"{displayName} / {ReadSpellId(field)?.ToString() ?? "?"}",
                         ReadType(field),
-                        ConditionFieldCategory.Spell);
+                        ConditionFieldCategory.Spell,
+                        CooldownConditionClassifications.Spell);
                 }
             }
         }
@@ -194,6 +244,15 @@ public sealed class ConditionFieldCatalog
             seen,
             ModuleSpecialActions.FailedSpell,
             ModuleSpecialActions.FailedSpell,
+            ConditionFieldType.String,
+            ConditionFieldCategory.State,
+            ClassStateCatalog.CategoryState);
+
+        AddField(
+            fields,
+            seen,
+            ModuleSpecialActions.FailedItem,
+            ModuleSpecialActions.FailedItem,
             ConditionFieldType.String,
             ConditionFieldCategory.State,
             ClassStateCatalog.CategoryState);
@@ -308,6 +367,10 @@ public sealed class ConditionFieldCatalog
             }
         }
     }
+
+    private static bool IsItemCooldownField(long? itemId, string? classification)
+        => itemId is > 0
+           || string.Equals(classification, ClassStateCatalog.CategoryItem, StringComparison.Ordinal);
 
     private static void AddField(
         List<ConditionField> fields,

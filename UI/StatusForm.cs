@@ -42,11 +42,10 @@ internal sealed record StatusListIcon(long Id, bool IsItem);
 
 public sealed class StatusForm : Form
 {
-    private const string AboutWatermarkResourcePath = "Assets.arasaka-icon-transparent.png";
-    private const int AboutWatermarkSize = 440;
-    private const int AboutWatermarkTopMargin = 16;
-    private const float AboutWatermarkOpacity = 0.08F;
+    private const string AboutLogoResourcePath = "Assets.arasaka-icon-transparent.png";
     private const int AboutCardWidth = 1200;
+    private const int AboutLogoSize = 220;
+    private const float AboutLogoOpacity = 0.55F;
     private const int BossNumberCardWidth = 400;
     private const int AboutScaleIconSize = 18;
 
@@ -1167,11 +1166,7 @@ public sealed class StatusForm : Form
 
     private Control BuildAboutPanel()
     {
-        var scrollHost = new WatermarkPanel(
-            GetEmbeddedResourceName(AboutWatermarkResourcePath),
-            AboutWatermarkSize,
-            AboutWatermarkTopMargin,
-            AboutWatermarkOpacity)
+        var scrollHost = new Panel
         {
             Dock = DockStyle.Fill,
             BackColor = UiTheme.Surface,
@@ -1199,12 +1194,14 @@ public sealed class StatusForm : Form
         var infoCard = new UiCardPanel
         {
             AutoSize = true,
-            ColumnCount = 1,
+            ColumnCount = 2,
             RowCount = 2,
             Padding = new Padding(UiTheme.CardPadding),
             Margin = new Padding(0, 0, 0, UiTheme.PageGap)
         };
         ApplyAboutCardWidth(infoCard);
+        infoCard.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        infoCard.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, AboutLogoSize + UiTheme.PageGap));
         infoCard.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         infoCard.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
@@ -1235,7 +1232,7 @@ public sealed class StatusForm : Form
             ForeColor = UiTheme.Muted,
             BackColor = Color.Transparent,
             Font = new Font(Font.FontFamily, 9.5F, FontStyle.Regular),
-            MaximumSize = new Size(GetAboutCardInnerWidth(), 0),
+            MaximumSize = new Size(GetAboutInfoTextWidth(), 0),
             Margin = new Padding(0)
         }, 0, 1);
         infoCard.Controls.Add(heading, 0, 0);
@@ -1268,6 +1265,14 @@ public sealed class StatusForm : Form
         AddAboutRow(details, "模块目录", FormatAboutPath(modulePath), modulePath);
         AddAboutRow(details, "配置目录", FormatAboutPath(configPath), configPath);
         infoCard.Controls.Add(details, 0, 1);
+        var logo = new AboutLogoBox(GetEmbeddedResourceName(AboutLogoResourcePath), AboutLogoSize, AboutLogoOpacity)
+        {
+            Dock = DockStyle.Fill,
+            MinimumSize = new Size(AboutLogoSize, AboutLogoSize),
+            Margin = new Padding(UiTheme.PageGap, 0, 0, 0)
+        };
+        infoCard.Controls.Add(logo, 1, 0);
+        infoCard.SetRowSpan(logo, 2);
         panel.Controls.Add(infoCard, 0, 0);
         panel.Controls.Add(CreateAboutArticleCard("免责声明", AboutDisclaimerText), 0, 1);
         panel.Controls.Add(CreateAboutArticleCard("许可证", AboutMitLicenseText), 0, 2);
@@ -1286,6 +1291,9 @@ public sealed class StatusForm : Form
 
     private static int GetAboutCardInnerWidth()
         => Math.Max(80, AboutCardWidth - UiTheme.CardPadding * 2);
+
+    private static int GetAboutInfoTextWidth()
+        => Math.Max(80, GetAboutCardInnerWidth() - AboutLogoSize - UiTheme.PageGap);
 
     private Control CreateAboutArticleCard(string title, string body)
     {
@@ -1375,7 +1383,7 @@ public sealed class StatusForm : Form
         fields.Controls.Add(CreateCommonFieldCard(
             "状态",
             [
-                "有效性", "战斗时间", "移动", "生命值", "一键辅助", "插入法术",
+                "有效性", "战斗时间", "移动", "生命值", "一键辅助", "插入法术", "插入物品",
                 "队伍类型", "队伍人数", "首领战", "难度", "英雄天赋", "施法目标",
                 "施法技能", "敌人数量", "敌人数-无仇恨", "敌人数-有仇恨",
                 "施法(正计时)", "施法(倒计时)", "引导", "蓄力", "蓄力层数",
@@ -1573,19 +1581,24 @@ public sealed class StatusForm : Form
         }
     }
 
-    private sealed class WatermarkPanel : Panel
+    private sealed class AboutLogoBox : Control
     {
-        private readonly Bitmap? _watermark;
-        private readonly int _watermarkSize;
-        private readonly int _topMargin;
+        private readonly Bitmap? _logo;
+        private readonly int _logoSize;
         private readonly float _opacity;
 
-        public WatermarkPanel(string resourceName, int watermarkSize, int topMargin, float opacity)
+        public AboutLogoBox(string resourceName, int logoSize, float opacity)
         {
-            _watermarkSize = watermarkSize;
-            _topMargin = topMargin;
+            _logoSize = logoSize;
             _opacity = Math.Clamp(opacity, 0F, 1F);
-            DoubleBuffered = true;
+            SetStyle(
+                ControlStyles.AllPaintingInWmPaint
+                | ControlStyles.OptimizedDoubleBuffer
+                | ControlStyles.ResizeRedraw
+                | ControlStyles.SupportsTransparentBackColor
+                | ControlStyles.UserPaint,
+                true);
+            BackColor = UiTheme.SurfaceRaised;
             ResizeRedraw = true;
 
             using var stream = typeof(StatusForm).Assembly.GetManifestResourceStream(resourceName);
@@ -1595,25 +1608,26 @@ public sealed class StatusForm : Form
             }
 
             using var image = Image.FromStream(stream);
-            _watermark = new Bitmap(image);
+            _logo = new Bitmap(image);
         }
 
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
-            if (_watermark is null)
+            if (_logo is null || ClientSize.Width <= 1 || ClientSize.Height <= 1)
             {
                 return;
             }
 
-            var preferredLeft = ClientSize.Width / 2;
+            var size = Math.Min(_logoSize, Math.Min(ClientSize.Width, ClientSize.Height));
             var bounds = new Rectangle(
-                Math.Min(preferredLeft, Math.Max(0, ClientSize.Width - _watermarkSize)),
-                _topMargin,
-                _watermarkSize,
-                _watermarkSize);
+                Math.Max(0, (ClientSize.Width - size) / 2),
+                Math.Max(0, (ClientSize.Height - size) / 2),
+                size,
+                size);
 
             using var attributes = new ImageAttributes();
+            attributes.SetColorKey(Color.Black, Color.FromArgb(24, 24, 24));
             var colorMatrix = new ColorMatrix
             {
                 Matrix33 = _opacity
@@ -1623,13 +1637,15 @@ public sealed class StatusForm : Form
                 ColorMatrixFlag.Default,
                 ColorAdjustType.Bitmap);
 
+            e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            e.Graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
             e.Graphics.DrawImage(
-                _watermark,
+                _logo,
                 bounds,
                 0,
                 0,
-                _watermark.Width,
-                _watermark.Height,
+                _logo.Width,
+                _logo.Height,
                 GraphicsUnit.Pixel,
                 attributes);
         }
@@ -1638,7 +1654,7 @@ public sealed class StatusForm : Form
         {
             if (disposing)
             {
-                _watermark?.Dispose();
+                _logo?.Dispose();
             }
 
             base.Dispose(disposing);

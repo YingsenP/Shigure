@@ -11,6 +11,8 @@ public sealed class KeymapService : IKeymapResolver
     private readonly Dictionary<(int Unit, string Spell), string> _fallbackHotkeys = new();
     private readonly Dictionary<long, int> _spellIndices = new();
     private readonly Dictionary<long, string> _spellNames = new();
+    private readonly Dictionary<long, int> _itemIndices = new();
+    private readonly Dictionary<long, string> _itemNames = new();
     private int? _currentClassId;
     private int? _currentSpecId;
 
@@ -38,6 +40,8 @@ public sealed class KeymapService : IKeymapResolver
         _fallbackHotkeys.Clear();
         _spellIndices.Clear();
         _spellNames.Clear();
+        _itemIndices.Clear();
+        _itemNames.Clear();
 
         LoadSpellIndices(classId);
 
@@ -128,6 +132,11 @@ public sealed class KeymapService : IKeymapResolver
         return _config.GetOneKeySpells(_currentClassId);
     }
 
+    public IReadOnlyDictionary<int, long> GetCurrentInsertItems()
+    {
+        return _config.GetInsertItems(_currentClassId);
+    }
+
     public IReadOnlyDictionary<long, int> GetCurrentSpellIndices()
     {
         return _spellIndices;
@@ -136,6 +145,16 @@ public sealed class KeymapService : IKeymapResolver
     public IReadOnlyDictionary<long, string> GetCurrentSpellNames()
     {
         return _spellNames;
+    }
+
+    public IReadOnlyDictionary<long, int> GetCurrentItemIndices()
+    {
+        return _itemIndices;
+    }
+
+    public IReadOnlyDictionary<long, string> GetCurrentItemNames()
+    {
+        return _itemNames;
     }
 
     private void LoadSpellIndices(int? classId)
@@ -159,6 +178,15 @@ public sealed class KeymapService : IKeymapResolver
                 if (!string.IsNullOrWhiteSpace(spell.Name))
                 {
                     _spellNames.TryAdd(spell.SpellId, spell.Name.Trim());
+                }
+            }
+
+            foreach (var item in document.ItemsList.Where(item => item.ItemId > 0))
+            {
+                _itemIndices.TryAdd(item.ItemId, item.Index);
+                if (!string.IsNullOrWhiteSpace(item.Name))
+                {
+                    _itemNames.TryAdd(item.ItemId, item.Name.Trim());
                 }
             }
         }
