@@ -57,8 +57,10 @@ internal static class ClassBlocksStore
     public sealed class ItemsListEntry
     {
         public long ItemId { get; set; }
+        public int Index { get; set; }
         public string Name { get; set; } = string.Empty;
         public long OriginalItemId { get; set; }
+        public int OriginalIndex { get; set; }
         public string OriginalName { get; set; } = string.Empty;
     }
 
@@ -220,12 +222,27 @@ internal static class ClassBlocksStore
                 continue;
             }
 
-            var name = value switch
+            int index = 0;
+            string? name = null;
+            switch (value)
             {
-                StringValue text => text.Value.Trim(),
-                TableValue item => item.GetString("name")?.Trim(),
-                _ => null
-            };
+                case StringValue text:
+                    name = text.Value.Trim();
+                    break;
+                case TableValue item:
+                    name = item.GetString("name")?.Trim();
+                    var indexValue = item.GetNumber("index");
+                    if (indexValue is { } number
+                        && number > 0
+                        && number <= int.MaxValue
+                        && number == Math.Truncate(number))
+                    {
+                        index = (int)number;
+                    }
+
+                    break;
+            }
+
             if (string.IsNullOrWhiteSpace(name))
             {
                 continue;
@@ -234,13 +251,33 @@ internal static class ClassBlocksStore
             result.Add(new ItemsListEntry
             {
                 ItemId = itemId,
+                Index = index,
                 Name = name,
                 OriginalItemId = itemId,
+                OriginalIndex = index,
                 OriginalName = name
             });
         }
 
+        AssignMissingItemsListIndices(result);
         return result;
+    }
+
+    private static void AssignMissingItemsListIndices(List<ItemsListEntry> entries)
+    {
+        var used = entries.Where(entry => entry.Index > 0).Select(entry => entry.Index).ToHashSet();
+        var next = 1;
+        foreach (var entry in entries.Where(entry => entry.Index <= 0))
+        {
+            while (used.Contains(next))
+            {
+                next++;
+            }
+
+            entry.Index = next;
+            used.Add(next);
+            next++;
+        }
     }
 
     public static void Save(ClassFileDocument document)
@@ -288,6 +325,7 @@ internal static class ClassBlocksStore
         foreach (var item in document.ItemsList)
         {
             item.OriginalItemId = item.ItemId;
+            item.OriginalIndex = item.Index;
             item.OriginalName = item.Name;
         }
 
@@ -433,14 +471,15 @@ internal static class ClassBlocksStore
         var changedEntries = entries
             .Where(entry => entry.OriginalItemId != 0
                 && (entry.ItemId != entry.OriginalItemId
+                    || entry.Index != entry.OriginalIndex
                     || !string.Equals(entry.Name, entry.OriginalName, StringComparison.Ordinal)))
             .ToDictionary(entry => entry.OriginalItemId);
         var tableText = source[tableStart..tableEnd];
-        var usesLegacyObjectEntries = tableText.Contains("name =", StringComparison.Ordinal);
+        var usesIndexedObjectEntries = tableText.Contains("index =", StringComparison.Ordinal);
         if (changedEntries.Count == 0
             && newEntries.Length == 0
             && deletedOriginalIds.Count == 0
-            && !usesLegacyObjectEntries)
+            && (entries.Count == 0 || usesIndexedObjectEntries))
         {
             return source;
         }
@@ -462,13 +501,15 @@ internal static class ClassBlocksStore
 
         var builder = new StringBuilder();
         builder.Append('{').Append(newline);
-        foreach (var entry in entries.OrderBy(item => item.ItemId))
+        foreach (var entry in entries.OrderBy(item => item.Index).ThenBy(item => item.ItemId))
         {
             builder.Append("    [")
                 .Append(entry.ItemId.ToString(CultureInfo.InvariantCulture))
-                .Append("] = \"")
+                .Append("] = { index = ")
+                .Append(entry.Index.ToString(CultureInfo.InvariantCulture))
+                .Append(", name = \"")
                 .Append(EscapeLuaString(entry.Name, '"'))
-                .Append("\",")
+                .Append("\" },")
                 .Append(newline);
         }
 

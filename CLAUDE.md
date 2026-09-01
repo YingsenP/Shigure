@@ -88,7 +88,7 @@ wow_process.txt 目标游戏进程名列表；构建时复制，运行期间每�
 - **Items**（物品冷却）：专精级 `[itemId] = { name, isEquipped }`
 - **Group**（队伍）：人数/生命百分比/角色/驱散 + 队伍光环列表
 
-同文件另有职业级 `Fuyutsui.spellsList` 与 `Fuyutsui.itemsList`（`[itemId] = "名称"`），与专精冷却表分开。
+同文件另有职业级 `Fuyutsui.spellsList` 与 `Fuyutsui.itemsList`（`[itemId] = { index, name }`），与专精冷却表分开。
 
 字段名从 [Infrastructure/ClassStateCatalog.cs](Infrastructure/ClassStateCatalog.cs) 的静态目录验证，不允许自由输入。
 

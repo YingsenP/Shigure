@@ -538,7 +538,7 @@ public sealed class ClassConfigEditorControl : UserControl
         _itemsListSearchBox.Anchor = AnchorStyles.Left | AnchorStyles.Right;
         _itemsListSearchBox.Margin = new Padding(0);
         _itemsListSearchBox.Height = 30;
-        _itemsListSearchBox.PlaceholderText = "itemId 或名称";
+        _itemsListSearchBox.PlaceholderText = "itemId、索引或名称";
         _itemsListSearchBox.TextChanged += (_, _) => ApplyItemsListFilter();
         searchCard.Controls.Add(_itemsListSearchBox, 1, 0);
         leftColumn.Controls.Add(searchCard, 0, 0);
@@ -593,6 +593,13 @@ public sealed class ClassConfigEditorControl : UserControl
             Name = "ItemId",
             HeaderText = "itemId",
             Width = 125,
+            SortMode = DataGridViewColumnSortMode.NotSortable
+        });
+        _itemsListGrid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            Name = "Index",
+            HeaderText = "索引",
+            Width = 72,
             SortMode = DataGridViewColumnSortMode.NotSortable
         });
         _itemsListGrid.Columns.Add(CreateSpellIconColumn());
@@ -2508,9 +2515,20 @@ public sealed class ClassConfigEditorControl : UserControl
             return;
         }
 
+        var usedIndices = _currentDocument.ItemsList
+            .Select(item => item.Index)
+            .Where(index => index >= 1)
+            .ToHashSet();
+        var nextIndex = 1;
+        while (usedIndices.Contains(nextIndex))
+        {
+            nextIndex++;
+        }
+
         var entry = new ClassBlocksStore.ItemsListEntry
         {
             ItemId = suggestion.ItemId,
+            Index = nextIndex,
             Name = suggestion.Name
         };
         _currentDocument.ItemsList.Add(entry);
@@ -2518,6 +2536,7 @@ public sealed class ClassConfigEditorControl : UserControl
 
         var rowIndex = _itemsListGrid.Rows.Add(
             suggestion.ItemId.ToString(CultureInfo.InvariantCulture),
+            nextIndex.ToString(CultureInfo.InvariantCulture),
             SpellIconCatalog.GetItem(suggestion.ItemId)!,
             suggestion.Name);
         var row = _itemsListGrid.Rows[rowIndex];
@@ -2876,11 +2895,12 @@ public sealed class ClassConfigEditorControl : UserControl
             return;
         }
 
-        foreach (var item in _currentDocument.ItemsList.OrderBy(entry => entry.ItemId))
+        foreach (var item in _currentDocument.ItemsList.OrderBy(entry => entry.Index).ThenBy(entry => entry.ItemId))
         {
             SpellIconCatalog.RegisterItem(item.ItemId, item.Name);
             var rowIndex = _itemsListGrid.Rows.Add(
                 item.ItemId.ToString(CultureInfo.InvariantCulture),
+                item.Index.ToString(CultureInfo.InvariantCulture),
                 SpellIconCatalog.GetItem(item.ItemId)!,
                 item.Name);
             _itemsListGrid.Rows[rowIndex].Tag = item;
@@ -2900,9 +2920,14 @@ public sealed class ClassConfigEditorControl : UserControl
                 continue;
             }
 
-            row.Visible = string.IsNullOrEmpty(query) || ItemsRowMatches(row, query);
+            row.Visible = string.IsNullOrEmpty(query) || ItemsListRowMatches(row, query);
         }
     }
+
+    private static bool ItemsListRowMatches(DataGridViewRow row, string query)
+        => new[] { "ItemId", "Index", "Name" }
+            .Select(columnName => row.Cells[columnName].Value?.ToString() ?? string.Empty)
+            .Any(value => value.Contains(query, StringComparison.OrdinalIgnoreCase));
 
     private void ApplySpellsListFilter()
     {
@@ -3374,6 +3399,15 @@ public sealed class ClassConfigEditorControl : UserControl
             }
 
             entry.ItemId = itemId;
+            if (int.TryParse(
+                    row.Cells["Index"].Value?.ToString()?.Trim(),
+                    NumberStyles.None,
+                    CultureInfo.InvariantCulture,
+                    out var index))
+            {
+                entry.Index = index;
+            }
+
             entry.Name = row.Cells["Name"].Value?.ToString()?.Trim() ?? "";
         }
     }
@@ -3564,6 +3598,7 @@ public sealed class ClassConfigEditorControl : UserControl
         }
 
         var itemIds = new HashSet<long>();
+        var indices = new HashSet<int>();
         foreach (DataGridViewRow row in _itemsListGrid.Rows)
         {
             if (row.IsNewRow)
@@ -3580,6 +3615,14 @@ public sealed class ClassConfigEditorControl : UserControl
                 return false;
             }
 
+            if (!int.TryParse(row.Cells["Index"].Value?.ToString()?.Trim(), NumberStyles.None,
+                    CultureInfo.InvariantCulture, out var index)
+                || index <= 0)
+            {
+                error = $"物品列表第 {rowNumber} 行的索引必须是正整数。";
+                return false;
+            }
+
             var name = row.Cells["Name"].Value?.ToString()?.Trim() ?? string.Empty;
             if (string.IsNullOrWhiteSpace(name))
             {
@@ -3590,6 +3633,12 @@ public sealed class ClassConfigEditorControl : UserControl
             if (!itemIds.Add(itemId))
             {
                 error = $"物品列表 itemId {itemId} 重复。";
+                return false;
+            }
+
+            if (!indices.Add(index))
+            {
+                error = $"物品列表索引 {index} 重复。";
                 return false;
             }
         }
