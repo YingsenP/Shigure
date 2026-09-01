@@ -38,7 +38,7 @@ function Fuyutsui:InitializeSpecializationState()
     C_Timer.After(5, function()
         self:LoadPlayerMacros()
     end)
-    self:GetItemCount()
+    self:UpdateItemCooldown()
     self:UpdateStateBlock("状态", "职业")
     self:UpdateStateBlock("状态", "专精")
 end
