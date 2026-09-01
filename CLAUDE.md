@@ -104,7 +104,7 @@ wow_process.txt 目标游戏进程名列表；构建时复制，运行期间每�
 
 - [UI/ClassConfigEditorControl.cs](UI/ClassConfigEditorControl.cs)：左侧职业列表 + 右侧按专精切换的六页编辑器（状态/光环/冷却/队伍/技能列表/物品列表），状态字段用 `ClassStateCatalog` 驱动的 `ComboBoxColumn`。
 - [UI/ClassMacrosEditorControl.cs](UI/ClassMacrosEditorControl.cs)：左侧职业列表 + 右侧三页编辑器（动态宏/静态宏/特殊宏），偏移提示显示槽位编号计算。
-- 两个编辑器均接受 `Func<string?>` 项目路径解析器 + `Func<string, Task<string?>>` 保存回调，由 `MainForm` 在构造时注入。保存流程：编辑器调 `Store.Save()` → 传入已保存文件路径 → 重新生成 config/keymap → 单文件部署游戏 → 重启运行时；部署失败返回说明，但不回滚本地文件。
+- 两个编辑器均接受 `Func<string?>` 项目路径解析器 + `Func<string, int, Task<ClassConfigPostSaveResult>>` 保存回调，由 `MainForm` 在构造时注入。保存流程：编辑器调 `Store.Save()` → 同步保存该职业模块依赖快照 → 传入已保存文件路径 → 重新生成 config/keymap → 单文件部署游戏 → 重启运行时；部署失败返回说明，但不回滚本地文件。
 - 配置更新的多个入口通过任务尾队列串行执行；运行时重启会等待该队列稳定，主窗口关闭也会等待正在写盘的转换和部署完成。新增同步入口必须继续走这条队列。
 
 ## UI 约定
