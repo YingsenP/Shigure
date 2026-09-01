@@ -255,6 +255,27 @@ internal static class FuyutsuiConfigConverter
                         continue;
                     }
 
+                    if (string.Equals(category, ClassStateCatalog.CategoryItem, StringComparison.Ordinal))
+                    {
+                        foreach (var item in ReadItems(list, warnings, label))
+                        {
+                            if (result.ContainsKey(item.Name))
+                            {
+                                warnings.Add($"{label}: 物品名称“{item.Name}”与已有状态字段重复，已跳过该物品字段");
+                            }
+                            else
+                            {
+                                var field = Field(index, "int", category);
+                                field["itemId"] = item.ItemId;
+                                result[item.Name] = field;
+                            }
+
+                            index++;
+                        }
+
+                        continue;
+                    }
+
                     foreach (var item in list.IPairs())
                     {
                         if (item is not StringValue nameValue || string.IsNullOrWhiteSpace(nameValue.Value))
@@ -481,6 +502,51 @@ internal static class FuyutsuiConfigConverter
         }
 
         return (result, warnings);
+    }
+
+    private static List<(long ItemId, string Name)> ReadItems(
+        TableValue list,
+        List<string> warnings,
+        string label)
+    {
+        var result = new List<(long ItemId, string Name)>();
+        var seenIds = new HashSet<long>();
+        var arrayValues = list.IPairs().ToList();
+        foreach (var item in arrayValues)
+        {
+            if (item is not StringValue nameValue || string.IsNullOrWhiteSpace(nameValue.Value))
+            {
+                continue;
+            }
+
+            var name = nameValue.Value.Trim();
+            if (!ClassStateCatalog.TryGetLegacyItemId(name, out var itemId))
+            {
+                warnings.Add($"{label}: 旧物品“{name}”缺少 itemId，已跳过");
+                continue;
+            }
+
+            if (seenIds.Add(itemId))
+            {
+                result.Add((itemId, name));
+            }
+        }
+
+        var arrayCount = arrayValues.Count;
+        foreach (var (key, value) in list.Entries)
+        {
+            if (key is not long itemId || itemId <= arrayCount
+                || value is not StringValue nameValue || string.IsNullOrWhiteSpace(nameValue.Value)
+                || !seenIds.Add(itemId))
+            {
+                continue;
+            }
+
+            result.Add((itemId, nameValue.Value.Trim()));
+        }
+
+        result.Sort((left, right) => left.ItemId.CompareTo(right.ItemId));
+        return result;
     }
 
     private static void AppendAuraList(

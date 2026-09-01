@@ -16,27 +16,29 @@
     "13": 32379,
     "14": 589,
     "15": 47540,
-    "16": 88625,
-    "17": 14914,
-    "18": 132157,
-    "19": 34914,
-    "20": 232698,
-    "21": 335467,
-    "22": 15407,
-    "23": 263165,
-    "24": 1227280,
-    "25": 450983,
-    "26": 1242173,
-    "27": 391403,
-    "28": 120644,
-    "29": 2061,
-    "30": 194509,
-    "31": 64863,
-    "32": 596,
-    "33": 1262763,
-    "34": 186263,
-    "35": 472433,
-    "36": 528,
+    "16": 47757,
+    "17": 47758,
+    "18": 88625,
+    "19": 14914,
+    "20": 132157,
+    "21": 34914,
+    "22": 232698,
+    "23": 335467,
+    "24": 15407,
+    "25": 263165,
+    "26": 1227280,
+    "27": 450983,
+    "28": 1242173,
+    "29": 391403,
+    "30": 120644,
+    "31": 2061,
+    "32": 194509,
+    "33": 64863,
+    "34": 596,
+    "35": 1262763,
+    "36": 186263,
+    "37": 472433,
+    "38": 528,
     "210": 384255,
     "211": 200749,
     "212": 28730,
@@ -185,25 +187,29 @@
       "type": "int",
       "category": "能量"
     },
-    "魔法药水": {
+    "治疗石": {
       "step": 24,
       "type": "int",
-      "category": "物品"
-    },
-    "治疗药水": {
-      "step": 25,
-      "type": "int",
-      "category": "物品"
-    },
-    "治疗石": {
-      "step": 26,
-      "type": "int",
-      "category": "物品"
+      "category": "物品",
+      "itemId": 5512
     },
     "鲁莽药水": {
+      "step": 25,
+      "type": "int",
+      "category": "物品",
+      "itemId": 241288
+    },
+    "魔法药水": {
+      "step": 26,
+      "type": "int",
+      "category": "物品",
+      "itemId": 241301
+    },
+    "治疗药水": {
       "step": 27,
       "type": "int",
-      "category": "物品"
+      "category": "物品",
+      "itemId": 241304
     },
     "延迟": {
       "step": 28,
@@ -850,7 +856,8 @@
     "治疗药水": {
       "step": 23,
       "type": "int",
-      "category": "物品"
+      "category": "物品",
+      "itemId": 241304
     },
     "延迟": {
       "step": 24,
@@ -1429,139 +1436,134 @@
       "type": "int",
       "category": "能量"
     },
-    "治疗药水": {
-      "step": 25,
-      "type": "int",
-      "category": "物品"
-    },
     "爆发开关": {
-      "step": 26,
+      "step": 25,
       "type": "int",
       "category": "配置开关"
     },
     "输出模式": {
-      "step": 27,
+      "step": 26,
       "type": "int",
       "category": "配置开关"
     },
     "AOE开关": {
-      "step": 28,
+      "step": 27,
       "type": "int",
       "category": "配置开关"
     },
     "目标类型": {
-      "step": 29,
+      "step": 28,
       "type": "int",
       "category": "目标"
     },
     "目标距离": {
-      "step": 30,
+      "step": 29,
       "type": "int",
       "category": "目标"
     },
     "目标生命值": {
-      "step": 31,
+      "step": 30,
       "type": "int",
       "category": "目标"
     },
     "目标施法(倒计时)": {
-      "step": 32,
+      "step": 31,
       "type": "int",
       "category": "目标"
     },
     "目标施法(正计时)": {
-      "step": 33,
+      "step": 32,
       "type": "int",
       "category": "目标"
     },
     "目标施法可打断": {
-      "step": 34,
+      "step": 33,
       "type": "int",
       "category": "目标"
     },
     "目标引导": {
-      "step": 35,
+      "step": 34,
       "type": "int",
       "category": "目标"
     },
     "目标引导可打断": {
-      "step": 36,
+      "step": 35,
       "type": "int",
       "category": "目标"
     },
     "焦点施法(倒计时)": {
-      "step": 37,
+      "step": 36,
       "type": "int",
       "category": "焦点"
     },
     "焦点施法(正计时)": {
-      "step": 38,
+      "step": 37,
       "type": "int",
       "category": "焦点"
     },
     "焦点施法可打断": {
-      "step": 39,
+      "step": 38,
       "type": "int",
       "category": "焦点"
     },
     "焦点引导": {
-      "step": 40,
+      "step": 39,
       "type": "int",
       "category": "焦点"
     },
     "焦点引导可打断": {
-      "step": 41,
+      "step": 40,
       "type": "int",
       "category": "焦点"
     },
     "鼠标类型": {
-      "step": 42,
+      "step": 41,
       "type": "int",
       "category": "鼠标"
     },
     "鼠标驱散类型": {
-      "step": 43,
+      "step": 42,
       "type": "int",
       "category": "鼠标"
     },
     "鼠标生命值": {
-      "step": 44,
+      "step": 43,
       "type": "int",
       "category": "鼠标"
     },
     "鼠标距离": {
-      "step": 45,
+      "step": 44,
       "type": "int",
       "category": "鼠标"
     },
     "鼠标施法(倒计时)": {
-      "step": 46,
+      "step": 45,
       "type": "int",
       "category": "鼠标"
     },
     "鼠标施法(正计时)": {
-      "step": 47,
+      "step": 46,
       "type": "int",
       "category": "鼠标"
     },
     "鼠标施法可打断": {
-      "step": 48,
+      "step": 47,
       "type": "int",
       "category": "鼠标"
     },
     "鼠标引导": {
-      "step": 49,
+      "step": 48,
       "type": "int",
       "category": "鼠标"
     },
     "鼠标引导可打断": {
-      "step": 50,
+      "step": 49,
       "type": "int",
       "category": "鼠标"
     },
     "auras": {
       "player.1242171.value": {
-        "step": 51,
+        "step": 50,
         "type": "int",
         "category": "玩家",
         "displayName": "虚空齐射",
@@ -1586,7 +1588,7 @@
         "bar": 1
       },
       "player.390978.value": {
-        "step": 52,
+        "step": 51,
         "type": "int",
         "category": "玩家",
         "displayName": "命运多舛",
@@ -1598,7 +1600,7 @@
         ]
       },
       "player.450193.value": {
-        "step": 53,
+        "step": 52,
         "type": "int",
         "category": "玩家",
         "displayName": "熵能裂隙",
@@ -1610,7 +1612,7 @@
         ]
       },
       "player.375981.value": {
-        "step": 54,
+        "step": 53,
         "type": "int",
         "category": "玩家",
         "displayName": "暗影洞察",
@@ -1622,7 +1624,7 @@
         ]
       },
       "player.373276.value": {
-        "step": 55,
+        "step": 54,
         "type": "int",
         "category": "玩家",
         "displayName": "尤格-萨隆的神像",
@@ -1647,7 +1649,7 @@
         "bar": 2
       },
       "target.harmful.589.value": {
-        "step": 56,
+        "step": 55,
         "type": "int",
         "category": "目标减益",
         "displayName": "暗言术：痛",
@@ -1659,7 +1661,7 @@
         ]
       },
       "target.harmful.34914.value": {
-        "step": 57,
+        "step": 56,
         "type": "int",
         "category": "目标减益",
         "displayName": "吸血鬼之触",
@@ -1671,7 +1673,7 @@
         ]
       },
       "target.harmful.335467.value": {
-        "step": 58,
+        "step": 57,
         "type": "int",
         "category": "目标减益",
         "displayName": "暗言术：癫",
@@ -1683,7 +1685,7 @@
         ]
       },
       "target.harmful.15407.value": {
-        "step": 59,
+        "step": 58,
         "type": "int",
         "category": "目标减益",
         "displayName": "精神鞭笞",
@@ -1695,7 +1697,7 @@
         ]
       },
       "target.harmful.1243069.value": {
-        "step": 60,
+        "step": 59,
         "type": "int",
         "category": "目标减益",
         "displayName": "惊魂幻象",
@@ -1720,7 +1722,7 @@
         "bar": 3
       },
       "focus.harmful.589.value": {
-        "step": 61,
+        "step": 60,
         "type": "int",
         "category": "焦点减益",
         "displayName": "暗言术：痛",
@@ -1732,7 +1734,7 @@
         ]
       },
       "focus.harmful.34914.value": {
-        "step": 62,
+        "step": 61,
         "type": "int",
         "category": "焦点减益",
         "displayName": "吸血鬼之触",
@@ -1744,7 +1746,7 @@
         ]
       },
       "focus.harmful.335467.value": {
-        "step": 63,
+        "step": 62,
         "type": "int",
         "category": "焦点减益",
         "displayName": "暗言术：癫",
@@ -1756,7 +1758,7 @@
         ]
       },
       "focus.harmful.15407.value": {
-        "step": 64,
+        "step": 63,
         "type": "int",
         "category": "焦点减益",
         "displayName": "精神鞭笞",
@@ -1768,7 +1770,7 @@
         ]
       },
       "focus.harmful.1243069.value": {
-        "step": 65,
+        "step": 64,
         "type": "int",
         "category": "焦点减益",
         "displayName": "惊魂幻象",
@@ -1795,7 +1797,7 @@
     },
     "spells": {
       "8122.cooldown": {
-        "step": 66,
+        "step": 65,
         "type": "int",
         "displayName": "心灵尖啸",
         "spellId": 8122,
@@ -1803,7 +1805,7 @@
         "displayType": "冷却"
       },
       "32375.cooldown": {
-        "step": 67,
+        "step": 66,
         "type": "int",
         "displayName": "群体驱散",
         "spellId": 32375,
@@ -1811,7 +1813,7 @@
         "displayType": "冷却"
       },
       "527.cooldown": {
-        "step": 68,
+        "step": 67,
         "type": "int",
         "displayName": "纯净术",
         "spellId": 527,
@@ -1819,7 +1821,7 @@
         "displayType": "冷却"
       },
       "19236.cooldown": {
-        "step": 69,
+        "step": 68,
         "type": "int",
         "displayName": "绝望祷言",
         "spellId": 19236,
@@ -1827,7 +1829,7 @@
         "displayType": "冷却"
       },
       "232633.cooldown": {
-        "step": 70,
+        "step": 69,
         "type": "int",
         "displayName": "奥术洪流",
         "spellId": 232633,
@@ -1835,7 +1837,7 @@
         "displayType": "冷却"
       },
       "8092.cooldown": {
-        "step": 71,
+        "step": 70,
         "type": "int",
         "displayName": "心灵震爆",
         "spellId": 8092,
@@ -1843,7 +1845,7 @@
         "displayType": "冷却"
       },
       "32379.cooldown": {
-        "step": 72,
+        "step": 71,
         "type": "int",
         "displayName": "暗言术：灭",
         "spellId": 32379,
@@ -1851,7 +1853,7 @@
         "displayType": "冷却"
       },
       "263165.cooldown": {
-        "step": 73,
+        "step": 72,
         "type": "int",
         "displayName": "虚空洪流",
         "spellId": 263165,
@@ -1859,7 +1861,7 @@
         "displayType": "冷却"
       },
       "228260.cooldown": {
-        "step": 74,
+        "step": 73,
         "type": "int",
         "displayName": "虚空形态",
         "spellId": 228260,
@@ -1867,7 +1869,7 @@
         "displayType": "冷却"
       },
       "1227280.cooldown": {
-        "step": 75,
+        "step": 74,
         "type": "int",
         "displayName": "触须猛击",
         "spellId": 1227280,
@@ -1875,7 +1877,7 @@
         "displayType": "冷却"
       },
       "15286.cooldown": {
-        "step": 76,
+        "step": 75,
         "type": "int",
         "displayName": "吸血鬼的拥抱",
         "spellId": 15286,
@@ -1883,7 +1885,7 @@
         "displayType": "冷却"
       },
       "120644.cooldown": {
-        "step": 77,
+        "step": 76,
         "type": "int",
         "displayName": "光晕",
         "spellId": 120644,
@@ -1891,7 +1893,7 @@
         "displayType": "冷却"
       },
       "1242173.cooldown": {
-        "step": 78,
+        "step": 77,
         "type": "int",
         "displayName": "虚空齐射",
         "spellId": 1242173,

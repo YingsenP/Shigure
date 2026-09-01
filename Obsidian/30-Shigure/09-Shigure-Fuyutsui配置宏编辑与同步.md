@@ -121,7 +121,8 @@ verified_at: 2026-08-10
 - 动态宏项每项预留/消耗 30 个单位位置，然后是静态宏和特殊宏；超过容量会警告并截断。
 - 旧 flat 格式或 common+spec 格式都可转换；专精输出是“common + 当前 spec + static + special”的完整映射，以适配运行时不合并顶层的语义。
 - party1..4 映射组员槽 2..5；原始 `@player` 动态语义映射组员槽 1；显式中文/player 保留单位 31；raid1..30 映射 1..30。
-- 方括号中非 `@` 条件汇总为 macroCondition；尾注释可以覆盖从宏文本推导的 spell 名。
+- dynamic/static 仍按宏文本生成映射，方括号中非 `@` 条件汇总为 macroCondition，尾注释可以覆盖推导出的 spell 名。
+- special 不再分析宏正文：尾注释必须作为手工技能名，映射固定为 `unit=0`、空 macroCondition；宏编辑器因此只显示可编辑技能名和完整宏，不显示目标与条件。
 - 能识别 stopcasting、castsequence、最后一个 cast 和 item 等受支持形式；不等于完整 WoW 宏解释器。
 - 输出包含全部 273 项，包括空项，以维持索引位置。
 

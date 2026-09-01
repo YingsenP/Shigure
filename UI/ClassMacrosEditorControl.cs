@@ -261,7 +261,13 @@ public sealed class ClassMacrosEditorControl : UserControl
         {
             BuildDynamicPage(),
             BuildArrayPage(_staticGrid, "class-macros-static", "完整宏", "注释", showParsedMacro: true),
-            BuildArrayPage(_specialGrid, "class-macros-special", "完整宏", "注释", showParsedMacro: true)
+            BuildArrayPage(
+                _specialGrid,
+                "class-macros-special",
+                "完整宏",
+                "注释",
+                showParsedMacro: false,
+                editSpecialSpell: true)
         };
         foreach (var page in pages)
         {
@@ -401,7 +407,8 @@ public sealed class ClassMacrosEditorControl : UserControl
         string cacheKey,
         string textHeader,
         string commentHeader,
-        bool showParsedMacro)
+        bool showParsedMacro,
+        bool editSpecialSpell = false)
     {
         var panel = new TableLayoutPanel
         {
@@ -445,6 +452,15 @@ public sealed class ClassMacrosEditorControl : UserControl
                 ReadOnly = true
             });
         }
+        else if (editSpecialSpell)
+        {
+            grid.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "Spell",
+                HeaderText = "技能",
+                Width = 180
+            });
+        }
 
         grid.Columns.Add(new DataGridViewTextBoxColumn
         {
@@ -452,7 +468,10 @@ public sealed class ClassMacrosEditorControl : UserControl
             HeaderText = textHeader,
             AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
         });
-        grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Comment", HeaderText = commentHeader, Width = 180 });
+        if (!editSpecialSpell)
+        {
+            grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Comment", HeaderText = commentHeader, Width = 180 });
+        }
         grid.Columns.Add(CreateDeleteColumn());
         WireGrid(grid);
         panel.Controls.Add(grid, 0, 0);
@@ -472,7 +491,7 @@ public sealed class ClassMacrosEditorControl : UserControl
                 return;
             }
 
-            if ((grid == _staticGrid || grid == _specialGrid)
+            if (grid == _staticGrid
                 && e.RowIndex >= 0
                 && e.ColumnIndex >= 0
                 && grid.Columns[e.ColumnIndex].Name is "Text" or "Comment")
@@ -955,7 +974,8 @@ public sealed class ClassMacrosEditorControl : UserControl
             }
 
             var text = row.Cells["Text"].Value?.ToString() ?? "";
-            var comment = row.Cells["Comment"].Value?.ToString()?.Trim();
+            var metadataColumn = grid.Columns.Contains("Comment") ? "Comment" : "Spell";
+            var comment = row.Cells[metadataColumn].Value?.ToString()?.Trim();
             target.Add(new ClassMacrosStore.ArrayEntry
             {
                 Text = text.Replace("\r\n", "\n", StringComparison.Ordinal),
@@ -1137,9 +1157,16 @@ public sealed class ClassMacrosEditorControl : UserControl
             var row = grid.Rows[rowIndex];
             row.Cells["Index"].Value = (i + 1).ToString(CultureInfo.InvariantCulture);
             row.Cells["Text"].Value = entry.Text;
-            row.Cells["Comment"].Value = entry.Comment ?? "";
+            if (grid == _specialGrid)
+            {
+                row.Cells["Spell"].Value = entry.Comment ?? "";
+            }
+            else
+            {
+                row.Cells["Comment"].Value = entry.Comment ?? "";
+            }
             row.Cells["Delete"].Value = "×";
-            if (grid == _staticGrid || grid == _specialGrid)
+            if (grid == _staticGrid)
             {
                 UpdateMacroDisplay(grid, row);
             }
@@ -1158,16 +1185,12 @@ public sealed class ClassMacrosEditorControl : UserControl
 
         var text = row.Cells["Text"].Value?.ToString() ?? "";
         var comment = row.Cells["Comment"].Value?.ToString();
-        var parsed = grid == _specialGrid
-            ? FuyutsuiKeymapConverter.ParseSpecialMacro(text, comment)
-            : FuyutsuiKeymapConverter.ParseStaticMacro(text, comment);
+        var parsed = FuyutsuiKeymapConverter.ParseStaticMacro(text, comment);
 
         _updatingDerivedColumns = true;
         try
         {
-            row.Cells["Unit"].Value = grid == _specialGrid
-                ? ReservedUnit.ToDisplayText(parsed.Unit)
-                : parsed.Unit.ToString(CultureInfo.InvariantCulture);
+            row.Cells["Unit"].Value = parsed.Unit.ToString(CultureInfo.InvariantCulture);
             row.Cells["Spell"].Value = parsed.Spell;
             row.Cells["Condition"].Value = MacroConditionText.ToDisplayText(parsed.Condition);
         }

@@ -273,29 +273,28 @@ function Fuyutsui:UpdateSpellCooldown()
     end
 end
 
-function Fuyutsui:GetItemCount()
-    self.state.HealthPotionCount = C_Item.GetItemCount(241304) + C_Item.GetItemCount(241305) +
-        C_Item.GetItemCount(271884) + C_Item.GetItemCount(271885)
-    self.state.ManaPotionCount = C_Item.GetItemCount(241301) + C_Item.GetItemCount(241300)
-    self.state.HealthstoneCount = C_Item.GetItemCount(5512) + C_Item.GetItemCount(224464)
-    self.state.RecklessnessCount = C_Item.GetItemCount(241288) + C_Item.GetItemCount(241289)
-    self.state.LightsPotentialCount = C_Item.GetItemCount(241308) + C_Item.GetItemCount(241309)
-    self.state.DraughtOfRampantAbandonCount = C_Item.GetItemCount(241292) + C_Item.GetItemCount(241293)
-end
-
 function Fuyutsui:GetItemRemainingTime(itemID)
+    local itemCount = itemID and C_Item.GetItemCount(itemID)
+    if not itemCount or itemCount <= 0 then
+        return 255
+    end
     local startTimeSeconds, durationSeconds, enableCooldownTimer = C_Item.GetItemCooldown(itemID)
-    if not enableCooldownTimer then return 255 end
-    if startTimeSeconds > 0 then
-        return durationSeconds - (GetTime() - startTimeSeconds)
-    else
+    if startTimeSeconds == nil or durationSeconds == nil
+        or enableCooldownTimer == nil or enableCooldownTimer == false or enableCooldownTimer == 0 then
+        return 255
+    end
+    if startTimeSeconds <= 0 or durationSeconds <= 0 then
         return 0
     end
+    local remainingTime = durationSeconds - (GetTime() - startTimeSeconds)
+    if remainingTime <= 0 then return 0 end
+    return math.min(254, math.ceil(remainingTime))
 end
 
 function Fuyutsui:UpdateItemCooldown()
-    local itemNames = { "治疗药水", "魔法药水", "治疗石", "鲁莽药水", "圣光潜力" }
-    for _, name in ipairs(itemNames) do
-        self:UpdateBareStateBlock(name, { "物品", "状态" })
+    local items = self.blocks and self.blocks.items
+    if not items then return end
+    for itemID, info in pairs(items) do
+        self:CreateTexture(info.index, self:GetItemRemainingTime(itemID) / 255)
     end
 end

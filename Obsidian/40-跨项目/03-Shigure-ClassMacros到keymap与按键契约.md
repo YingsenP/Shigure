@@ -80,7 +80,7 @@ dynamicSpells（每项展开 30 个团队槽）
 | `Fuyutsui.MacroBodies` | 可复用的命名宏体 | 被条目按名称解析，不单独占槽 |
 | `dynamicSpells` | 对队伍/团队单位展开的技能 | 每个条目连续占 30 个单位槽 |
 | `staticSpells` | 普通技能或可解析宏条目 | 每项占一个槽，空字符串保留位置 |
-| `specialSpells` | 完整特殊宏文本 | 在 static 之后逐项占槽，保留顺序和注释语义 |
+| `specialSpells` | 完整特殊宏文本；行尾注释是手工技能名 | 在 static 之后逐项占槽，保留顺序；Shigure 固定映射为无目标、无宏条件 |
 
 `LoadPlayerMacros` 先取得当前职业和专精，把 `dynamicSpells.common` 与当前 `[specIndex]` 连接，再交给 `CreateMacro`。
 
@@ -131,7 +131,7 @@ keymap 是生成物；宏 Lua 与两端一致的展开算法才是来源。
 
 1. `ClassMacrosStore` 与 `LuaLiteParser` 读取同一 `ClassMacros` 表，并保留数组空槽和行尾注释。
 2. `FuyutsuiKeymapConverter` 按 dynamic 每项 30 槽，再 static、special 的顺序遍历同一 key pool。
-3. 转换器从直接技能或宏文本中提取技能名、单位与可选宏条件，写入职业 keymap。
+3. 转换器从 dynamic/static 条目提取技能名、单位与可选宏条件；special 不解析正文，只读取行尾注释中的手工技能名，并固定写成无目标、无宏条件。
 4. `KeymapService` 根据当前职业/专精选择数据，并以 unit、spell、condition 查找 hotkey。
 5. module 可直接提供 hotkey，或提供技能/动态单位后通过 keymap 解析；特殊动作可能先从 `GameState` 解析实际技能。
 6. `ShigureRuntime` 应用规则延迟和逻辑延迟后调用 `KeySender`；目标窗口收到的键应命中 Fuyutsui 覆盖绑定或游戏动作条。

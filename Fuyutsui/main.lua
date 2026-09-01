@@ -29,7 +29,6 @@ function Fuyutsui:RefreshPlayerState()
     self:RefreshBossUnitStates()
     self:RefreshEnemyCounts()
     self:RebuildGroupRoster()
-    self:GetItemCount()
     self:RefreshAllPlayerPowers()
     C_Timer.After(1, function()
         self:RefreshPlayerConfigStateBlocks()
@@ -46,6 +45,7 @@ function Fuyutsui:LoadPlayerBlocks(specIndex)
     if not t then return end
     local blocks = {
         state = {},
+        items = {},
         auras = {},
         spells = {},
         bars = {},
@@ -72,14 +72,51 @@ function Fuyutsui:LoadPlayerBlocks(specIndex)
             or t.states["首领1"] or t.states["首领2"] or t.states["首领3"]
             or t.states["首领4"] or t.states["首领5"]
         if nested then
+            local legacyItemIDs = {
+                ["治疗药水"] = 241304,
+                ["魔法药水"] = 241301,
+                ["治疗石"] = 5512,
+                ["鲁莽药水"] = 241288,
+                ["圣光潜力"] = 241308,
+            }
             for _, category in ipairs(stateCategoryOrder) do
                 local list = t.states[category]
                 if type(list) == "table" then
-                    for _, name in ipairs(list) do
-                        if name then
-                            local key = bareKeyCategories[category] and name or (category .. name)
-                            blocks.state[key] = index
+                    if category == "物品" then
+                        local itemEntries = {}
+                        local seenItemIDs = {}
+                        local legacyItemCount = #list
+                        for itemID, name in pairs(list) do
+                            if type(itemID) == "number" and itemID > legacyItemCount and itemID % 1 == 0
+                                and type(name) == "string" and name ~= "" then
+                                itemEntries[#itemEntries + 1] = { itemID = itemID, name = name }
+                                seenItemIDs[itemID] = true
+                            end
+                        end
+                        for _, name in ipairs(list) do
+                            local itemID = legacyItemIDs[name]
+                            if itemID and not seenItemIDs[itemID] then
+                                itemEntries[#itemEntries + 1] = { itemID = itemID, name = name }
+                                seenItemIDs[itemID] = true
+                            elseif not itemID then
+                                print("LoadPlayerBlocks: 旧物品“" .. tostring(name) .. "”缺少 itemId，已跳过")
+                            end
+                        end
+                        table.sort(itemEntries, function(left, right)
+                            return left.itemID < right.itemID
+                        end)
+                        for _, item in ipairs(itemEntries) do
+                            blocks.state[item.name] = index
+                            blocks.items[item.itemID] = { index = index, name = item.name }
                             index = index + 1
+                        end
+                    else
+                        for _, name in ipairs(list) do
+                            if name then
+                                local key = bareKeyCategories[category] and name or (category .. name)
+                                blocks.state[key] = index
+                                index = index + 1
+                            end
                         end
                     end
                 end

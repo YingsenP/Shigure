@@ -691,6 +691,7 @@ public sealed class ModuleEditorControl : UserControl
         _adjustmentTypeColumn.DisplayIndex = 1;
 
         _adjustmentsGrid.CellClick += OnAdjustmentsGridCellClick;
+        _adjustmentsGrid.CellFormatting += OnAdjustmentsGridCellFormatting;
         _adjustmentsGrid.CellPainting += OnAdjustmentsGridCellPainting;
         _adjustmentsGrid.CellValueChanged += OnAdjustmentsGridCellValueChanged;
         _adjustmentsGrid.DataError += (_, e) => e.ThrowException = false;
@@ -1550,6 +1551,21 @@ public sealed class ModuleEditorControl : UserControl
         }
 
         RefreshAdjustmentValidation();
+    }
+
+    private void OnAdjustmentsGridCellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
+    {
+        if (e.RowIndex < 0
+            || e.ColumnIndex < 0
+            || _adjustmentsGrid.Rows[e.RowIndex].IsNewRow
+            || _adjustmentsGrid.Columns[e.ColumnIndex].Name != "Condition")
+        {
+            return;
+        }
+
+        // 动态数值条件沿用规则表的名称化显示；单元格底层仍保留 spellId 表达式供保存和运行。
+        e.Value = FormatConditionExpressionForDisplay(e.Value?.ToString());
+        e.FormattingApplied = true;
     }
 
     private IReadOnlyList<ConditionField> BuildAdjustmentFields()

@@ -126,7 +126,7 @@ Fuyutsui.ClassMacros = {
 
         },
         specialSpells = {
-            "/stopcasting",
+            "/stopcasting", -- 停止施法
         },
     },
 
@@ -235,8 +235,8 @@ Fuyutsui.ClassMacros = {
             "[@target]驱散魔法",
         },
         specialSpells = {
-            "/castsequence reset=0.4 真言术：耀,x",
-            "/stopcasting",
+            "/castsequence reset=0.4 真言术：耀,x", -- 真言术：耀
+            "/stopcasting", -- 停止施法
         },
     },
 
@@ -292,7 +292,7 @@ Fuyutsui.ClassMacros = {
             "[@cursor]枯萎凋零",
         },
         specialSpells = {
-            "/castsequence reset=1 死亡之握,x",
+            "/castsequence reset=1 死亡之握,x", -- 死亡之握
         },
     },
 
@@ -346,7 +346,7 @@ Fuyutsui.ClassMacros = {
             "[@player]治疗之雨",
         },
         specialSpells = {
-            "/stopcasting",
+            "/stopcasting", -- 停止施法
         },
     },
 
@@ -579,8 +579,8 @@ Fuyutsui.ClassMacros = {
             "[nostance:1]熊形态",
         },
         specialSpells = {
-            "/cancelaura [spec:4]猎豹形态\n/cast 万灵之召",
-            "/castsequence reset=0.5 铁鬃,x",
+            "/cancelaura [spec:4]猎豹形态\n/cast 万灵之召", -- 万灵之召
+            "/castsequence reset=0.5 铁鬃,x", -- 铁鬃
         },
     },
 
@@ -634,8 +634,8 @@ Fuyutsui.ClassMacros = {
             "破裂",
         },
         specialSpells = {
-            "/castsequence reset=0.5 恶魔变形,x",
-            "/castsequence reset=0.5 烈火烙印,x",
+            "/castsequence reset=0.5 恶魔变形,x", -- 恶魔变形
+            "/castsequence reset=0.5 烈火烙印,x", -- 烈火烙印
         },
     },
 

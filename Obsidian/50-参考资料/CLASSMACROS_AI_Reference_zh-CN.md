@@ -305,13 +305,14 @@ Fuyutsui.MacroBodies = {
 
 ```lua
 specialSpells = {
-    "/castsequence reset=0.5 死亡之握,x",
-    "/stopcasting",
+    "/castsequence reset=0.5 死亡之握,x", -- 死亡之握
+    "/stopcasting", -- 停止施法
 }
 ```
 
 - 同样是**数组**，接在该职业**全部** `staticSpells` 之后依次占键。
 - 也走 `resolveMacroBody`：可用完整 `/...` 文本，或 MacroBodies 名称，或普通法术名（会加 `/cast`）。
+- Fuyutsui 只使用字符串宏体；Shigure 把同行 `--` 注释作为必须手工维护的技能名，不分析特殊宏正文，并固定生成无目标、无宏条件的 keymap 条目。
 - 当前仓库多数职业 `specialSpells = {}`；历史上与 static 同槽的特殊宏（sequence / stopcasting 等）已直接写在 `staticSpells` 对应位置（以 `/` 开头），以保持键位。
 
 ### 8.2 何时用 special 而不是写进 static

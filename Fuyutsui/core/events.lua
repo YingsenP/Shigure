@@ -233,15 +233,15 @@ local potions = {
 }
 
 function Fuyutsui:ITEM_COUNT_CHANGED()
-    self:GetItemCount()
+    self:UpdateItemCooldown()
 end
 
 function Fuyutsui:PLAYERBANKSLOTS_CHANGED()
-    self:GetItemCount()
+    self:UpdateItemCooldown()
 end
 
 function Fuyutsui:BAG_UPDATE()
-    self:GetItemCount()
+    self:UpdateItemCooldown()
 end
 
 function Fuyutsui:UNIT_HEALTH(_, unit)

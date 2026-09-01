@@ -238,7 +238,8 @@ internal static partial class FuyutsuiKeymapConverter
                     }
                 }
 
-                if (entry is { Body.Length: > 0 }
+                if (isStaticEntry
+                    && entry is { Body.Length: > 0 }
                     && IsWeakSpellName(spell)
                     && TryGetExistingSpellName(existingSpellNames, specId, i, out var preserved)
                     && !string.IsNullOrWhiteSpace(preserved)
@@ -328,20 +329,11 @@ internal static partial class FuyutsuiKeymapConverter
     }
 
     /// <summary>
-    /// 解析特殊宏：方括号中以 @ 开头的首个单位作为 unit，技能沿用宏技能推导（castsequence 只取逗号前首项）。
+    /// 特殊宏不解析宏正文。技能名必须由编辑器手工填写并保存在同行注释中，
+    /// keymap 固定使用无目标、无宏条件。
     /// </summary>
-    internal static ParsedMacro ParseSpecialMacro(string raw, string? comment = null)
-    {
-        // 标准 WoW 条件允许单位出现在其它条件之后，例如 [known:123,@cursor]。
-        var target = StaticTargetRegex().Match(raw);
-        var unit = target.Success
-            ? ResolveUnitName(target.Groups["unit"].Value)
-            : ReservedUnit.None;
-
-        var spell = ResolveSpellName(new MacroEntry(raw, comment));
-        spell = SplitTopLevel(spell, ',').FirstOrDefault()?.Trim() ?? string.Empty;
-        return new ParsedMacro(unit, spell, ResolveConditions(raw));
-    }
+    internal static ParsedMacro ParseSpecialMacro(string _, string? comment = null)
+        => new(ReservedUnit.None, comment?.Trim() ?? string.Empty, string.Empty);
 
     /// <summary>方括号中以 @ 开头的是目标，其余逗号分隔项作为只读条件摘要。</summary>
     private static string ResolveConditions(string raw)

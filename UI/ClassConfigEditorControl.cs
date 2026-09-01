@@ -27,6 +27,9 @@ public sealed class ClassConfigEditorControl : UserControl
 
     private readonly DataGridView _statesGrid = new();
     private readonly DataGridViewComboBoxColumn _stateNameColumn = new();
+    private readonly DataGridViewTextBoxColumn _itemIdColumn = new();
+    private readonly DataGridViewTextBoxColumn _itemNameColumn = new();
+    private Control _stateMoveBar = null!;
     private ToolStripDropDown? _stateComboDropDown;
     private readonly DataGridView _aurasGrid = new();
     private readonly DataGridView _spellsGrid = new();
@@ -428,6 +431,16 @@ public sealed class ClassConfigEditorControl : UserControl
         _stateNameColumn.FlatStyle = FlatStyle.Flat;
         _stateNameColumn.DisplayStyle = DataGridViewComboBoxDisplayStyle.DropDownButton;
         _statesGrid.Columns.Add(_stateNameColumn);
+        _itemIdColumn.Name = "ItemId";
+        _itemIdColumn.HeaderText = "itemId";
+        _itemIdColumn.Width = 180;
+        _itemIdColumn.Visible = false;
+        _statesGrid.Columns.Add(_itemIdColumn);
+        _itemNameColumn.Name = "ItemName";
+        _itemNameColumn.HeaderText = "名称";
+        _itemNameColumn.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        _itemNameColumn.Visible = false;
+        _statesGrid.Columns.Add(_itemNameColumn);
         _statesGrid.Columns.Add(CreateDeleteColumn());
         _statesGrid.CellPainting += (_, e) =>
         {
@@ -446,7 +459,8 @@ public sealed class ClassConfigEditorControl : UserControl
         _statesGrid.DataError += (_, e) => e.ThrowException = false;
         _statesGrid.Disposed += (_, _) => CloseStateComboDropDown();
         panel.Controls.Add(_statesGrid, 0, 1);
-        panel.Controls.Add(BuildMoveButtons(_statesGrid), 0, 2);
+        _stateMoveBar = BuildMoveButtons(_statesGrid);
+        panel.Controls.Add(_stateMoveBar, 0, 2);
         return panel;
     }
 
@@ -1579,6 +1593,28 @@ public sealed class ClassConfigEditorControl : UserControl
         }
 
         var category = _selectedStateCategory;
+        var isItemCategory = string.Equals(category, ClassStateCatalog.CategoryItem, StringComparison.Ordinal);
+        _stateNameColumn.Visible = !isItemCategory;
+        _itemIdColumn.Visible = isItemCategory;
+        _itemNameColumn.Visible = isItemCategory;
+        _statesGrid.EditMode = isItemCategory
+            ? DataGridViewEditMode.EditOnEnter
+            : DataGridViewEditMode.EditProgrammatically;
+        _stateMoveBar.Visible = !isItemCategory;
+        if (isItemCategory)
+        {
+            foreach (var item in _currentSpec.Items.OrderBy(item => item.ItemId ?? long.MaxValue))
+            {
+                _statesGrid.Rows.Add(
+                    DBNull.Value,
+                    item.ItemId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+                    item.Name,
+                    "×");
+            }
+
+            return;
+        }
+
         BindStateNameColumn(ClassStateCatalog.GetAllOptions(category));
         var storageCategory = ClassStateCatalog.GetStorageCategory(category);
         IEnumerable<string> names = _currentSpec.NestedStates
@@ -1591,7 +1627,7 @@ public sealed class ClassConfigEditorControl : UserControl
         foreach (var name in names)
         {
             EnsureStateOptionAvailable(category, name);
-            _statesGrid.Rows.Add(name, "×");
+            _statesGrid.Rows.Add(name, DBNull.Value, DBNull.Value, "×");
         }
     }
 
@@ -2535,10 +2571,110 @@ public sealed class ClassConfigEditorControl : UserControl
         return true;
     }
 
+    private bool TryValidateItems(out string error)
+    {
+        error = string.Empty;
+        if (_currentDocument is null)
+        {
+            return true;
+        }
+
+        foreach (var (specId, spec) in _currentDocument.Specs.OrderBy(pair => pair.Key))
+        {
+            if (spec.Items.Count == 0)
+            {
+                continue;
+            }
+
+            if (!spec.NestedStates)
+            {
+                error = $"专精 {specId} 仍使用平面 states，无法保存 itemId 物品配置。";
+                return false;
+            }
+
+            var itemIds = new HashSet<long>();
+            var itemNames = new HashSet<string>(StringComparer.Ordinal);
+            var bareNames = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var category in new[]
+                     {
+                         ClassStateCatalog.CategoryState,
+                         ClassStateCatalog.CategoryResource,
+                         ClassStateCatalog.CategoryConfig
+                     })
+            {
+                foreach (var name in spec.CategorizedStates.GetValueOrDefault(category) ?? [])
+                {
+                    bareNames.Add(name);
+                }
+            }
+
+            for (var index = 0; index < spec.Items.Count; index++)
+            {
+                var item = spec.Items[index];
+                var rowNumber = index + 1;
+                if (item.ItemId is not { } itemId || itemId <= 0)
+                {
+                    error = $"专精 {specId} 的物品第 {rowNumber} 行 itemId 必须是正整数。";
+                    return false;
+                }
+
+                if (string.IsNullOrWhiteSpace(item.Name))
+                {
+                    error = $"专精 {specId} 的物品第 {rowNumber} 行名称不能为空。";
+                    return false;
+                }
+
+                if (!itemIds.Add(itemId))
+                {
+                    error = $"专精 {specId} 的物品 itemId {itemId} 重复。";
+                    return false;
+                }
+
+                if (!itemNames.Add(item.Name))
+                {
+                    error = $"专精 {specId} 的物品名称“{item.Name}”重复。";
+                    return false;
+                }
+
+                if (bareNames.Contains(item.Name))
+                {
+                    error = $"专精 {specId} 的物品名称“{item.Name}”与状态、能量或配置开关字段重名。";
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
     private void WriteBackStatesCategory(string category)
     {
         if (_currentSpec is null)
         {
+            return;
+        }
+
+        if (string.Equals(category, ClassStateCatalog.CategoryItem, StringComparison.Ordinal))
+        {
+            _currentSpec.Items.Clear();
+            foreach (DataGridViewRow row in _statesGrid.Rows)
+            {
+                if (row.IsNewRow)
+                {
+                    continue;
+                }
+
+                var idText = row.Cells["ItemId"].Value?.ToString()?.Trim();
+                var name = row.Cells["ItemName"].Value?.ToString()?.Trim() ?? string.Empty;
+                long? itemId = long.TryParse(idText, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedId)
+                    ? parsedId
+                    : null;
+                if (itemId is not null || name.Length > 0)
+                {
+                    _currentSpec.Items.Add(new ClassBlocksStore.ItemEntry { ItemId = itemId, Name = name });
+                }
+            }
+
             return;
         }
 
@@ -2750,6 +2886,7 @@ public sealed class ClassConfigEditorControl : UserControl
         try
         {
             _spellsListGrid.EndEdit();
+            _statesGrid.EndEdit();
             if (!TryValidateSpellsList(out var validationError))
             {
                 MessageBox.Show(validationError, "技能列表", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -2759,6 +2896,13 @@ public sealed class ClassConfigEditorControl : UserControl
 
             // 切换分类前把当前状态表写回。
             CommitCurrentSpecFromUi();
+            if (!TryValidateItems(out validationError))
+            {
+                MessageBox.Show(validationError, "物品", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                _statusLabel.Text = validationError;
+                return;
+            }
+
             WriteBackSpellsList();
             ClassBlocksStore.Save(_currentDocument);
             localSaved = true;

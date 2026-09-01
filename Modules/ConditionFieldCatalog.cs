@@ -361,6 +361,14 @@ public sealed class ConditionFieldCatalog
                         result[key] = classification;
                     }
                 }
+
+                foreach (var item in spec.Items)
+                {
+                    if (!string.IsNullOrWhiteSpace(item.Name))
+                    {
+                        result[item.Name] = ClassStateCatalog.CategoryItem;
+                    }
+                }
             }
             else
             {
