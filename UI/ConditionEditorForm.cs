@@ -158,7 +158,7 @@ public sealed class ConditionEditorForm : Form
         new("状态", ConditionFieldCategory.State),
         new("Shigure", ConditionFieldCategory.Shigure),
         new("光环", ConditionFieldCategory.Aura),
-        new("技能", ConditionFieldCategory.Spell),
+        new("冷却", ConditionFieldCategory.Spell),
         new("动态单位", ConditionFieldCategory.DynamicUnit),
         new("动态数值", ConditionFieldCategory.DynamicValue)
     ];
@@ -1241,7 +1241,9 @@ public sealed class ConditionEditorForm : Form
     {
         var cell = (DataGridViewComboBoxCell)row.Cells[ClassificationColumn];
         cell.Items.Clear();
-        var enabled = category is ConditionFieldCategory.State or ConditionFieldCategory.Aura;
+        var enabled = category is ConditionFieldCategory.State
+            or ConditionFieldCategory.Aura
+            or ConditionFieldCategory.Spell;
         cell.ReadOnly = !enabled;
         cell.DisplayStyle = enabled
             ? DataGridViewComboBoxDisplayStyle.DropDownButton
@@ -1254,12 +1256,18 @@ public sealed class ConditionEditorForm : Form
 
         var options = category == ConditionFieldCategory.State
             ? ClassStateCatalog.TopCategories.ToList()
-            : _fields
-                .Where(field => field.Category == category)
-                .Select(field => NormalizeClassification(field.Classification))
-                .Distinct(StringComparer.Ordinal)
-                .ToList();
-        if (category == ConditionFieldCategory.State)
+            : category == ConditionFieldCategory.Spell
+                ? new List<string>
+                {
+                    CooldownConditionClassifications.Spell,
+                    CooldownConditionClassifications.Item
+                }
+                : _fields
+                    .Where(field => field.Category == category)
+                    .Select(field => NormalizeClassification(field.Classification))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToList();
+        if (category is ConditionFieldCategory.State or ConditionFieldCategory.Spell)
         {
             // 固定分类之后仍保留配置中出现的扩展分类。
             foreach (var classification in _fields
@@ -1308,7 +1316,9 @@ public sealed class ConditionEditorForm : Form
 
         foreach (var field in _fields.Where(field =>
                      field.Category == category
-                     && (category is not (ConditionFieldCategory.State or ConditionFieldCategory.Aura)
+                     && (category is not (ConditionFieldCategory.State
+                             or ConditionFieldCategory.Aura
+                             or ConditionFieldCategory.Spell)
                          || string.Equals(
                              NormalizeClassification(field.Classification),
                              classification,
@@ -1395,7 +1405,12 @@ public sealed class ConditionEditorForm : Form
                     : fieldName?.StartsWith("auras.焦点", StringComparison.OrdinalIgnoreCase) == true
                         ? "焦点光环"
                         : "玩家"
-                : ClassStateCatalog.CategoryState);
+                : category == ConditionFieldCategory.Spell
+                    ? fieldName?.StartsWith("spells.", StringComparison.OrdinalIgnoreCase) == true
+                      || fieldName?.StartsWith("spell.", StringComparison.OrdinalIgnoreCase) == true
+                        ? CooldownConditionClassifications.Spell
+                        : CooldownConditionClassifications.Item
+                    : ClassStateCatalog.CategoryState);
     }
 
     private ConditionField? FindField(string? fieldName)

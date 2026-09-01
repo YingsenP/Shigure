@@ -1703,6 +1703,15 @@ public sealed class ModuleEditorControl : UserControl
             {
                 AddAdjustmentField(fields, seen, field.Name, field.DisplayName, ConditionFieldCategory.State);
             }
+            else if (field.Category == ConditionFieldCategory.Spell
+                     && string.Equals(
+                         field.Classification,
+                         CooldownConditionClassifications.Item,
+                         StringComparison.Ordinal)
+                     && field.Type == ConditionFieldType.Int)
+            {
+                AddAdjustmentField(fields, seen, field.Name, field.DisplayName, ConditionFieldCategory.State);
+            }
             else if (field.Category is ConditionFieldCategory.Spell or ConditionFieldCategory.Aura)
             {
                 AddAdjustmentField(fields, seen, field.Name, field.DisplayName, field.Category);
