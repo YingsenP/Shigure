@@ -96,8 +96,8 @@ internal sealed class ModuleDependencyService
                 DynamicForSpec = macros.UsesSpecDynamicSpells
                     ? new List<string>(macros.DynamicBySpec.GetValueOrDefault(specId.Value) ?? [])
                     : [],
-                StaticSpells = macros.StaticSpells.Select(CaptureMacro).ToList(),
-                SpecialSpells = macros.SpecialSpells.Select(CaptureMacro).ToList()
+                StaticSpells = CompactMacroSnapshots(macros.StaticSpells.Select(CaptureMacro), isSpecial: false),
+                SpecialSpells = CompactMacroSnapshots(macros.SpecialSpells.Select(CaptureMacro), isSpecial: true)
             }
         };
         PreservePreviousSpellDependencies(captured, previous);
@@ -148,8 +148,8 @@ internal sealed class ModuleDependencyService
             }
         }
 
-        PreserveMacros(captured.Macros.StaticSpells, previous.Macros.StaticSpells);
-        PreserveMacros(captured.Macros.SpecialSpells, previous.Macros.SpecialSpells);
+        PreserveMacros(captured.Macros.StaticSpells, previous.Macros.StaticSpells, isSpecial: false);
+        PreserveMacros(captured.Macros.SpecialSpells, previous.Macros.SpecialSpells, isSpecial: true);
 
         static void PreserveAuras(List<ModuleAuraSnapshot> local, IEnumerable<ModuleAuraSnapshot>? incoming)
         {
@@ -175,17 +175,6 @@ internal sealed class ModuleDependencyService
                 if (string.IsNullOrWhiteSpace(existing.Name))
                 {
                     existing.Name = aura.Name;
-                }
-            }
-        }
-
-        static void PreserveMacros(List<ModuleMacroEntrySnapshot> local, IEnumerable<ModuleMacroEntrySnapshot>? incoming)
-        {
-            foreach (var macro in incoming ?? [])
-            {
-                if (local.All(existing => !MacroEntryEquals(existing, macro)))
-                {
-                    local.Add(macro.Clone());
                 }
             }
         }
@@ -1084,48 +1073,161 @@ internal sealed class ModuleDependencyService
             }
         }
 
-        var identities = BuildMacroIdentities(local);
-        MergeMacroEntries(local.StaticSpells, incoming.StaticSpells, isSpecial: false, identities, counters);
-        MergeMacroEntries(local.SpecialSpells, incoming.SpecialSpells, isSpecial: true, identities, counters);
-    }
-
-    private static Dictionary<MacroIdentity, ModuleMacroEntrySnapshot> BuildMacroIdentities(ClassMacrosStore.ClassMacros macros)
-    {
-        var result = new Dictionary<MacroIdentity, ModuleMacroEntrySnapshot>();
-        foreach (var entry in macros.StaticSpells)
-        {
-            result.TryAdd(GetMacroIdentity(entry.Text, entry.Comment, isSpecial: false), CaptureMacro(entry));
-        }
-        foreach (var entry in macros.SpecialSpells)
-        {
-            result.TryAdd(GetMacroIdentity(entry.Text, entry.Comment, isSpecial: true), CaptureMacro(entry));
-        }
-        return result;
+        MergeMacroEntries(local.StaticSpells, incoming.StaticSpells, isSpecial: false, counters);
+        MergeMacroEntries(local.SpecialSpells, incoming.SpecialSpells, isSpecial: true, counters);
     }
 
     private static void MergeMacroEntries(
         List<ClassMacrosStore.ArrayEntry> local,
         IEnumerable<ModuleMacroEntrySnapshot> incoming,
         bool isSpecial,
-        IDictionary<MacroIdentity, ModuleMacroEntrySnapshot> identities,
         MergeCounters counters)
     {
-        foreach (var entry in incoming)
+        foreach (var entry in CompactMacroSnapshots(incoming, isSpecial))
         {
-            var identity = GetMacroIdentity(entry.Text, entry.Comment, isSpecial);
-            if (identities.TryGetValue(identity, out var existing))
+            var overlapIndex = IndexOfOverlappingArrayEntry(local, entry, isSpecial);
+            if (overlapIndex >= 0)
             {
-                if (!MacroEntryEquals(existing, entry))
+                var existing = local[overlapIndex];
+                if (string.IsNullOrWhiteSpace(existing.Comment) && !string.IsNullOrWhiteSpace(entry.Comment))
                 {
+                    existing.Comment = entry.Comment;
+                    counters.MacrosAdded++;
+                    continue;
+                }
+
+                if (!string.Equals(NormalizeMacroText(existing.Text), NormalizeMacroText(entry.Text), StringComparison.Ordinal)
+                    || CommentsConflict(existing.Comment, entry.Comment))
+                {
+                    var identity = GetMacroIdentity(entry.Text, entry.Comment, isSpecial);
                     counters.Conflicts.Add($"宏“{identity.Spell}”与本地内容不同，已保留本地。");
                 }
+
                 continue;
             }
 
             local.Add(new ClassMacrosStore.ArrayEntry { Text = entry.Text, Comment = entry.Comment });
-            identities[identity] = entry;
             counters.MacrosAdded++;
         }
+    }
+
+    // 当前 Lua 已删除的静态/特殊宏不再从旧快照塞回；只把重叠条目上缺失的注释补回去。
+    private static void PreserveMacros(
+        List<ModuleMacroEntrySnapshot> local,
+        IEnumerable<ModuleMacroEntrySnapshot>? incoming,
+        bool isSpecial)
+    {
+        foreach (var macro in incoming ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(macro.Text))
+            {
+                continue;
+            }
+
+            var index = IndexOfOverlappingMacroSnapshot(local, macro, isSpecial);
+            if (index >= 0)
+            {
+                UpgradeMacroComment(local[index], macro);
+            }
+        }
+    }
+
+    private static List<ModuleMacroEntrySnapshot> CompactMacroSnapshots(
+        IEnumerable<ModuleMacroEntrySnapshot>? entries,
+        bool isSpecial)
+    {
+        var result = new List<ModuleMacroEntrySnapshot>();
+        foreach (var entry in entries ?? [])
+        {
+            if (entry is null || string.IsNullOrWhiteSpace(entry.Text))
+            {
+                continue;
+            }
+
+            var index = IndexOfOverlappingMacroSnapshot(result, entry, isSpecial);
+            if (index >= 0)
+            {
+                UpgradeMacroComment(result[index], entry);
+                continue;
+            }
+
+            result.Add(entry.Clone());
+        }
+
+        return result;
+    }
+
+    private static void UpgradeMacroComment(ModuleMacroEntrySnapshot target, ModuleMacroEntrySnapshot source)
+    {
+        if (string.IsNullOrWhiteSpace(target.Comment) && !string.IsNullOrWhiteSpace(source.Comment))
+        {
+            target.Comment = source.Comment;
+        }
+    }
+
+    private static int IndexOfOverlappingMacroSnapshot(
+        IReadOnlyList<ModuleMacroEntrySnapshot> entries,
+        ModuleMacroEntrySnapshot candidate,
+        bool isSpecial)
+    {
+        for (var i = 0; i < entries.Count; i++)
+        {
+            if (MacrosOverlap(entries[i].Text, entries[i].Comment, candidate.Text, candidate.Comment, isSpecial))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static int IndexOfOverlappingArrayEntry(
+        IReadOnlyList<ClassMacrosStore.ArrayEntry> entries,
+        ModuleMacroEntrySnapshot candidate,
+        bool isSpecial)
+    {
+        for (var i = 0; i < entries.Count; i++)
+        {
+            if (MacrosOverlap(entries[i].Text, entries[i].Comment, candidate.Text, candidate.Comment, isSpecial))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static bool MacrosOverlap(
+        string leftText,
+        string? leftComment,
+        string rightText,
+        string? rightComment,
+        bool isSpecial)
+    {
+        var leftNormalized = NormalizeMacroText(leftText);
+        var rightNormalized = NormalizeMacroText(rightText);
+        if (leftNormalized.Length > 0 && leftNormalized == rightNormalized)
+        {
+            return true;
+        }
+
+        if (!isSpecial)
+        {
+            return false;
+        }
+
+        var leftName = leftComment?.Trim() ?? string.Empty;
+        var rightName = rightComment?.Trim() ?? string.Empty;
+        return leftName.Length > 0 && string.Equals(leftName, rightName, StringComparison.Ordinal);
+    }
+
+    private static bool CommentsConflict(string? left, string? right)
+    {
+        var leftName = left?.Trim() ?? string.Empty;
+        var rightName = right?.Trim() ?? string.Empty;
+        return leftName.Length > 0
+               && rightName.Length > 0
+               && !string.Equals(leftName, rightName, StringComparison.Ordinal);
     }
 
     private static MacroIdentity GetMacroIdentity(string text, string? comment, bool isSpecial)
@@ -1139,8 +1241,8 @@ internal sealed class ModuleDependencyService
             : new MacroIdentity(isSpecial, parsed.Unit, NormalizeMacroText(text), parsed.Condition);
     }
 
-    private static string NormalizeMacroText(string value)
-        => value.Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
+    private static string NormalizeMacroText(string? value)
+        => (value ?? string.Empty).Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
 
     private static void EnsureMacroCapacity(int classId, ClassMacrosStore.ClassMacros macros)
     {
@@ -1214,10 +1316,6 @@ internal sealed class ModuleDependencyService
            && left.ForcedKnown == right.ForcedKnown
            && left.InSpellBook == right.InSpellBook;
 
-    private static bool MacroEntryEquals(ModuleMacroEntrySnapshot left, ModuleMacroEntrySnapshot right)
-        => string.Equals(NormalizeMacroText(left.Text), NormalizeMacroText(right.Text), StringComparison.Ordinal)
-           && string.Equals(left.Comment?.Trim(), right.Comment?.Trim(), StringComparison.Ordinal);
-
     private sealed class MergeCounters
     {
         public int ConfigAdded { get; set; }
@@ -1228,8 +1326,7 @@ internal sealed class ModuleDependencyService
         public bool HasConfigChanges => ConfigAdded > 0 || ConfigUpdated > 0;
     }
 
-    // 静态宏按解析出的目标/技能/条件去重；特殊宏只按手工技能名去重，
-    // 但两类宏仍是两个独立槽位。
+    // 仅用于冲突提示：静态宏按解析出的目标/技能/条件；特殊宏按手工技能名。
     private readonly record struct MacroIdentity(bool IsSpecial, int Unit, string Spell, string Condition);
 }
 

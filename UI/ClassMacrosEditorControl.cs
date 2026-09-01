@@ -10,7 +10,7 @@ namespace Shigure;
 public sealed class ClassMacrosEditorControl : UserControl
 {
     private readonly Func<string?> _resolveClassMacrosPath;
-    private readonly Func<string, Task<string?>> _updateConfigAsync;
+    private readonly Func<string, int, Task<ClassConfigPostSaveResult>> _updateConfigAsync;
 
     private readonly ListBox _classList = new();
     private readonly Label _pathLabel = new();
@@ -43,7 +43,7 @@ public sealed class ClassMacrosEditorControl : UserControl
 
     public ClassMacrosEditorControl(
         Func<string?> resolveClassMacrosPath,
-        Func<string, Task<string?>> updateConfigAsync)
+        Func<string, int, Task<ClassConfigPostSaveResult>> updateConfigAsync)
     {
         _resolveClassMacrosPath = resolveClassMacrosPath;
         _updateConfigAsync = updateConfigAsync;
@@ -1020,6 +1020,12 @@ public sealed class ClassMacrosEditorControl : UserControl
             return;
         }
 
+        if (_currentClassId is not { } classId)
+        {
+            MessageBox.Show("请先选择职业。", "宏", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
         var localSaved = false;
         try
         {
@@ -1028,17 +1034,18 @@ public sealed class ClassMacrosEditorControl : UserControl
             localSaved = true;
             SetDirty(false);
             _statusLabel.Text = "本地 Lua 已保存，正在更新配置并同步游戏…";
-            var syncIssue = await _updateConfigAsync(_document.FilePath);
+            var updateResult = await _updateConfigAsync(_document.FilePath, classId);
             if (IsDisposed)
             {
                 return;
             }
 
-            if (!string.IsNullOrWhiteSpace(syncIssue))
+            if (!string.IsNullOrWhiteSpace(updateResult.AddonSyncIssue))
             {
                 _statusLabel.Text = "本地已保存并更新配置，但游戏同步失败";
                 MessageBox.Show(
-                    $"本地 Lua 已保存，config/keymap 已更新，但游戏插件同步未完成：\n{syncIssue}",
+                    $"本地 Lua、该职业的 {updateResult.SavedModuleCount} 个模块及 config/keymap 已保存，"
+                    + $"但游戏插件同步未完成：\n{updateResult.AddonSyncIssue}",
                     "游戏同步失败",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
@@ -1046,13 +1053,16 @@ public sealed class ClassMacrosEditorControl : UserControl
                 return;
             }
 
-            _statusLabel.Text = "已保存并更新配置";
+            _statusLabel.Text = $"已保存宏及该职业的 {updateResult.SavedModuleCount} 个模块";
             UpdateOffsetHint();
+            var warningText = updateResult.ModuleWarnings.Count == 0
+                ? string.Empty
+                : $"\n\n有 {updateResult.ModuleWarnings.Count} 个模块未携带依赖，详情见日志。";
             MessageBox.Show(
-                "请在游戏内重载界面,  /reload",
+                $"已一并保存该职业的 {updateResult.SavedModuleCount} 个模块。{warningText}\n\n请在游戏内重载界面,  /reload",
                 "保存成功",
                 MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
+                updateResult.ModuleWarnings.Count == 0 ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
         }
         catch (Exception ex)
         {

@@ -185,7 +185,7 @@ public sealed class MainForm : Form, IMessageFilter
         _classConfigEditor.DirtyStateChanged += dirty => _statusForm.SetPageDirty(SettingsPage.Config, dirty);
         _classMacrosEditor = new ClassMacrosEditorControl(
             () => Path.Combine(_addonSyncService.SourceRoot, "core", "classmacros.lua"),
-            UpdateConfigAfterSaveAsync);
+            UpdateClassConfigAfterSaveAsync);
         _statusForm.AttachMacrosEditor(_classMacrosEditor);
         _classMacrosEditor.DirtyStateChanged += dirty => _statusForm.SetPageDirty(SettingsPage.Macros, dirty);
         _statusForm.FormClosing += (_, _) =>
@@ -1497,12 +1497,6 @@ public sealed class MainForm : Form, IMessageFilter
         }
     }
 
-    private async Task<string?> UpdateConfigAfterSaveAsync(string savedAddonFilePath)
-    {
-        var result = await QueueProjectConfigUpdateAsync(savedAddonFilePath);
-        return DescribeAddonSyncIssue(result.AddonSync);
-    }
-
     private async Task<ClassConfigPostSaveResult> UpdateClassConfigAfterSaveAsync(
         string savedAddonFilePath,
         int classId)
@@ -1512,7 +1506,7 @@ public sealed class MainForm : Form, IMessageFilter
         if (moduleResult.Errors.Count > 0)
         {
             throw new InvalidOperationException(
-                $"配置已更新，但该职业有 {moduleResult.Errors.Count} 个模块保存失败；"
+                $"该职业有 {moduleResult.Errors.Count} 个模块保存失败；"
                 + $"已成功保存 {moduleResult.SavedCount} 个模块。详情见日志。");
         }
 
@@ -1551,7 +1545,7 @@ public sealed class MainForm : Form, IMessageFilter
         }
 
         var className = ClassNames.GetClassAndSpecName(classId, null).ClassName ?? $"职业{classId}";
-        AppendLog($"保存{className}配置时已同步保存 {savedCount}/{modules.Count} 个该职业模块。");
+        AppendLog($"已同步保存 {savedCount}/{modules.Count} 个{className}模块。");
         foreach (var warning in warnings)
         {
             AppendLog($"模块依赖保存提示: {warning}");
