@@ -30,6 +30,7 @@ public sealed class ClassConfigEditorControl : UserControl
     private ToolStripDropDown? _stateComboDropDown;
     private readonly DataGridView _aurasGrid = new();
     private readonly DataGridView _spellsGrid = new();
+    private readonly TextBox _spellsSearchBox = new();
     private readonly DataGridView _itemsGrid = new();
     private readonly TextBox _itemsSearchBox = new();
     private readonly DataGridView _itemsListGrid = new();
@@ -897,13 +898,47 @@ public sealed class ClassConfigEditorControl : UserControl
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 2,
+            RowCount = 3,
             BackColor = UiTheme.SurfaceRaised,
             Margin = new Padding(0, 0, 5, 0),
             Padding = new Padding(0)
         };
+        leftColumn.RowStyles.Add(new RowStyle(SizeType.Absolute, 68));
         leftColumn.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         leftColumn.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+
+        var spellSearchCard = new UiCardPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = new Padding(0, 0, 0, 10),
+            Padding = new Padding(12, 8, 12, 8)
+        };
+        spellSearchCard.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 64));
+        spellSearchCard.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        spellSearchCard.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        spellSearchCard.Controls.Add(new Label
+        {
+            Dock = DockStyle.Fill,
+            Text = "搜索",
+            ForeColor = UiTheme.Text,
+            BackColor = Color.Transparent,
+            Font = new Font(Font.FontFamily, 9F, FontStyle.Bold, GraphicsUnit.Point),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Margin = new Padding(0),
+            Padding = new Padding(8, 0, 0, 0)
+        }, 0, 0);
+
+        UiTheme.StyleTextBox(_spellsSearchBox);
+        _spellsSearchBox.Dock = DockStyle.None;
+        _spellsSearchBox.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+        _spellsSearchBox.Margin = new Padding(0);
+        _spellsSearchBox.Height = 30;
+        _spellsSearchBox.PlaceholderText = "spellId 或名称";
+        _spellsSearchBox.TextChanged += (_, _) => ApplySpellsFilter();
+        spellSearchCard.Controls.Add(_spellsSearchBox, 1, 0);
+        leftColumn.Controls.Add(spellSearchCard, 0, 0);
 
         var spellCard = new UiCardPanel
         {
@@ -960,8 +995,8 @@ public sealed class ClassConfigEditorControl : UserControl
         _spellsGrid.UserAddedRow += (_, _) => MarkDirty();
         _spellsGrid.DataError += (_, e) => e.ThrowException = false;
         spellCard.Controls.Add(_spellsGrid, 0, 1);
-        leftColumn.Controls.Add(spellCard, 0, 0);
-        leftColumn.Controls.Add(BuildMoveButtons(_spellsGrid), 0, 1);
+        leftColumn.Controls.Add(spellCard, 0, 1);
+        leftColumn.Controls.Add(BuildMoveButtons(_spellsGrid), 0, 2);
         split.Controls.Add(leftColumn, 0, 0);
 
         var rightColumn = new TableLayoutPanel
@@ -2086,6 +2121,28 @@ public sealed class ClassConfigEditorControl : UserControl
         row.Cells["Icon"].Value = icon;
     }
 
+    private void ApplySpellsFilter()
+    {
+        var query = _spellsSearchBox.Text.Trim();
+        _spellsGrid.ClearSelection();
+        _spellsGrid.CurrentCell = null;
+
+        foreach (DataGridViewRow row in _spellsGrid.Rows)
+        {
+            if (row.IsNewRow)
+            {
+                continue;
+            }
+
+            row.Visible = string.IsNullOrEmpty(query) || SpellsRowMatches(row, query);
+        }
+    }
+
+    private static bool SpellsRowMatches(DataGridViewRow row, string query)
+        => new[] { "SpellId", "Name" }
+            .Select(columnName => row.Cells[columnName].Value?.ToString() ?? string.Empty)
+            .Any(value => value.Contains(query, StringComparison.OrdinalIgnoreCase));
+
     private void ApplyItemsFilter()
     {
         var query = _itemsSearchBox.Text.Trim();
@@ -2691,6 +2748,7 @@ public sealed class ClassConfigEditorControl : UserControl
     private void FillSpellsGrid()
     {
         _spellsGrid.Rows.Clear();
+        _spellsSearchBox.Clear();
         if (_currentSpec is null)
         {
             return;
@@ -3988,6 +4046,7 @@ public sealed class ClassConfigEditorControl : UserControl
         _statesGrid.Rows.Clear();
         _aurasGrid.Rows.Clear();
         _spellsGrid.Rows.Clear();
+        _spellsSearchBox.Clear();
         _itemsGrid.Rows.Clear();
         _itemsSearchBox.Clear();
         _itemsListGrid.Rows.Clear();
@@ -4087,6 +4146,11 @@ public sealed class ClassConfigEditorControl : UserControl
 
         var index = grid.CurrentRow.Index;
         var target = index + delta;
+        while (target >= 0 && target < grid.Rows.Count && !grid.Rows[target].IsNewRow && !grid.Rows[target].Visible)
+        {
+            target += delta;
+        }
+
         if (target < 0 || target >= grid.Rows.Count || grid.Rows[target].IsNewRow)
         {
             return;
