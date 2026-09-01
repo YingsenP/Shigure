@@ -78,6 +78,7 @@ internal static class FuyutsuiConfigConverter
             var classBlocks = ExtractAssignedTable(lua, "Fuyutsui.ClassBlocks")
                 ?? throw new InvalidDataException($"{fileName}.lua 中未找到 Fuyutsui.ClassBlocks");
             var spellsList = ExtractAssignedTable(lua, "Fuyutsui.spellsList");
+            var itemsList = ExtractAssignedTable(lua, "Fuyutsui.itemsList");
 
             var root = new JsonObject();
             PreserveMeta(existing, root);
@@ -89,6 +90,15 @@ internal static class FuyutsuiConfigConverter
             else
             {
                 CompileSpellMaps(spellsList, root, warnings, fileName);
+            }
+
+            if (itemsList is null)
+            {
+                warnings.Add($"{fileName}: 未找到 Fuyutsui.itemsList，已保留现有一键物品");
+            }
+            else
+            {
+                CompileItemMaps(itemsList, root, warnings, fileName);
             }
 
             for (var specId = 1; specId <= 4; specId++)
@@ -150,7 +160,7 @@ internal static class FuyutsuiConfigConverter
 
     private static void PreserveMeta(JsonObject existing, JsonObject target)
     {
-        foreach (var key in new[] { "keymap", "一键法术" })
+        foreach (var key in new[] { "keymap", "一键法术", ModuleSpecialActions.OneKeyItem })
         {
             if (existing[key] is { } node)
             {
@@ -202,6 +212,49 @@ internal static class FuyutsuiConfigConverter
         target[ModuleSpecialActions.OneKeySpell] = ToSpellMap(oneKeySpells);
     }
 
+    private static void CompileItemMaps(
+        TableValue itemsList,
+        JsonObject target,
+        List<string> warnings,
+        string label)
+    {
+        var oneKeyItems = new SortedDictionary<int, long>();
+
+        foreach (var (key, value) in itemsList.Entries)
+        {
+            if (value is not TableValue item)
+            {
+                continue;
+            }
+
+            var indexValue = item.GetNumber("index");
+            var itemIdValue = key switch
+            {
+                long number => (double)number,
+                int number => number,
+                double number => number,
+                NumberValue number => (double)number.AsInt(),
+                _ => item.GetNumber("itemId")
+            };
+            if (indexValue is null
+                || indexValue.Value <= 0
+                || indexValue.Value > int.MaxValue
+                || indexValue.Value != Math.Truncate(indexValue.Value)
+                || itemIdValue is null
+                || itemIdValue.Value <= 0
+                || itemIdValue.Value != Math.Truncate(itemIdValue.Value))
+            {
+                warnings.Add($"{label}: itemsList 条目缺少有效 index/itemId，已跳过");
+                continue;
+            }
+
+            var index = (int)indexValue.Value;
+            AddSpellMapEntry(oneKeyItems, index, (long)itemIdValue.Value, ModuleSpecialActions.OneKeyItem, warnings, label);
+        }
+
+        target[ModuleSpecialActions.OneKeyItem] = ToSpellMap(oneKeyItems);
+    }
+
     private static void AddSpellMapEntry(
         IDictionary<int, long> target,
         int index,
@@ -219,7 +272,7 @@ internal static class FuyutsuiConfigConverter
         if (existingName != spellId)
         {
             warnings.Add(
-                $"{label}: {mapName} index {index} 同时对应 spellId {existingName} 和 {spellId}，已保留前者");
+                $"{label}: {mapName} index {index} 同时对应 id {existingName} 和 {spellId}，已保留前者");
         }
     }
 

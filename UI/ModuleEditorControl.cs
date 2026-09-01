@@ -64,6 +64,7 @@ public sealed class ModuleEditorControl : UserControl
     private readonly Dictionary<string, List<long>> _currentSpecItemIdsByName =
         new(StringComparer.Ordinal);
     private readonly List<ConditionSpell> _currentClassConditionSpells = new();
+    private readonly List<ConditionItem> _currentClassConditionItems = new();
     private HashSet<string>? _availableConditionFields;
     private HashSet<string>? _availableGroupConditionFields;
     private Dictionary<string, string>? _conditionFieldDisplayNames;
@@ -986,6 +987,7 @@ public sealed class ModuleEditorControl : UserControl
         _spellColumn.Items.Add(string.Empty);
         _spellColumn.Items.Add(ModuleSpecialActions.PauseSpell);
         _spellColumn.Items.Add(ModuleSpecialActions.FailedSpell);
+        _spellColumn.Items.Add(ModuleSpecialActions.FailedItem);
         _spellColumn.Items.Add(ModuleSpecialActions.OneKeySpell);
         foreach (var spell in _keymapCatalog.GetSpells(classId))
         {
@@ -1065,7 +1067,9 @@ public sealed class ModuleEditorControl : UserControl
         var classId = ReadMatchCombo(_classBox);
         var allowed = ModuleSpecialActions.IsFailedSpell(spell)
             ? _keymapCatalog.GetUnitsForSpells(classId, _keymapCatalog.GetFailedSpellNames(classId))
-            : _keymapCatalog.GetUnitsForSpell(classId, spell);
+            : ModuleSpecialActions.IsFailedItem(spell)
+                ? _keymapCatalog.GetUnitsForSpells(classId, _keymapCatalog.GetFailedItemNames(classId))
+                : _keymapCatalog.GetUnitsForSpell(classId, spell);
 
         foreach (var unit in allowed)
         {
@@ -1208,6 +1212,7 @@ public sealed class ModuleEditorControl : UserControl
         _currentClassSpellIdsByName.Clear();
         _currentSpecItemIdsByName.Clear();
         _currentClassConditionSpells.Clear();
+        _currentClassConditionItems.Clear();
         var classId = ReadMatchCombo(_classBox);
         if (classId is null)
         {
@@ -1242,6 +1247,30 @@ public sealed class ModuleEditorControl : UserControl
                 if (!spellIds.Contains(spell.SpellId))
                 {
                     spellIds.Add(spell.SpellId);
+                }
+            }
+
+            foreach (var item in document.ItemsList
+                         .Where(item => item.ItemId > 0 && !string.IsNullOrWhiteSpace(item.Name))
+                         .OrderBy(item => item.Index)
+                         .ThenBy(item => item.ItemId))
+            {
+                var name = item.Name.Trim();
+                SpellIconCatalog.RegisterItem(item.ItemId, name);
+                if (_currentClassConditionItems.All(entry => entry.ItemId != item.ItemId))
+                {
+                    _currentClassConditionItems.Add(new ConditionItem(item.ItemId, item.Index, name));
+                }
+
+                if (!_currentSpecItemIdsByName.TryGetValue(name, out var classItemIds))
+                {
+                    classItemIds = [];
+                    _currentSpecItemIdsByName[name] = classItemIds;
+                }
+
+                if (!classItemIds.Contains(item.ItemId))
+                {
+                    classItemIds.Add(item.ItemId);
                 }
             }
 
@@ -1436,6 +1465,17 @@ public sealed class ModuleEditorControl : UserControl
                     || !availableSpellIds.Contains(spellId))
                 {
                     AddUnique(messages, $"{term.Field}不存在 spellId 为 {term.Value.Trim()} 的法术");
+                }
+                continue;
+            }
+
+            if (ItemIdConditionFields.Contains(term.Field))
+            {
+                if (!long.TryParse(term.Value.Trim(), out var itemId)
+                    || itemId <= 0
+                    || !_currentClassConditionItems.Any(item => item.ItemId == itemId))
+                {
+                    AddUnique(messages, $"{term.Field}不存在 itemId 为 {term.Value.Trim()} 的物品");
                 }
                 continue;
             }
@@ -2185,7 +2225,8 @@ public sealed class ModuleEditorControl : UserControl
 
         if (!row.IsNewRow
             && (GetMissingConditionFields(row).Count > 0
-                || GetMissingConditionSpells(row).Count > 0))
+                || GetMissingConditionSpells(row).Count > 0
+                || GetMissingConditionItems(row).Count > 0))
         {
             // 缺失字段或 spellId 会让条件不命中；用整行红色状态提醒用户修复配置。
             e.CellStyle.BackColor = UiTheme.DangerSoft;
@@ -2280,6 +2321,42 @@ public sealed class ModuleEditorControl : UserControl
                 }
 
                 var message = $"{term.Field}不存在 spellId 为 {value} 的法术";
+                if (seen.Add(message))
+                {
+                    missing.Add(message);
+                }
+            }
+        }
+
+        return missing;
+    }
+
+    private IReadOnlyList<string> GetMissingConditionItems(DataGridViewRow row)
+    {
+        var availableItemIds = _currentClassConditionItems
+            .Select(item => item.ItemId)
+            .ToHashSet();
+        var missing = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var metadata = GetRuleMetadata(row);
+        foreach (var expression in new[] { CellText(row, "Condition") }.Concat(metadata.SubConditions))
+        {
+            foreach (var term in ConditionExpression.Parse(expression))
+            {
+                if (!ItemIdConditionFields.Contains(term.Field))
+                {
+                    continue;
+                }
+
+                var value = term.Value.Trim();
+                if (long.TryParse(value, out var itemId)
+                    && itemId > 0
+                    && availableItemIds.Contains(itemId))
+                {
+                    continue;
+                }
+
+                var message = $"{term.Field}不存在 itemId 为 {value} 的物品";
                 if (seen.Add(message))
                 {
                     missing.Add(message);
@@ -2421,6 +2498,8 @@ public sealed class ModuleEditorControl : UserControl
             var field = FormatConditionFieldForDisplay(term.Field);
             var value = SpellIdConditionFields.Contains(term.Field)
                 ? FormatConditionSpellValueForDisplay(term.Value)
+                : ItemIdConditionFields.Contains(term.Field)
+                    ? FormatConditionItemValueForDisplay(term.Value)
                 : string.Equals(NormalizeConditionFieldName(term.Field), "首领战", StringComparison.Ordinal)
                     ? FormatBossValueForDisplay(term.Value)
                 : term.Value;
@@ -2465,6 +2544,19 @@ public sealed class ModuleEditorControl : UserControl
         }
 
         var name = ResolveConditionSpellName(spellId, null);
+        return string.IsNullOrWhiteSpace(name) ? value : name;
+    }
+
+    private string FormatConditionItemValueForDisplay(string value)
+    {
+        var normalized = value.Trim();
+        if (!long.TryParse(normalized, NumberStyles.Integer, CultureInfo.InvariantCulture, out var itemId)
+            || itemId <= 0)
+        {
+            return value;
+        }
+
+        var name = _currentClassConditionItems.FirstOrDefault(item => item.ItemId == itemId)?.Name;
         return string.IsNullOrWhiteSpace(name) ? value : name;
     }
 
@@ -2666,7 +2758,8 @@ public sealed class ModuleEditorControl : UserControl
 
         var missingFields = GetMissingConditionFields(_rulesGrid.Rows[rowIndex]);
         var missingSpells = GetMissingConditionSpells(_rulesGrid.Rows[rowIndex]);
-        if (missingFields.Count > 0 || missingSpells.Count > 0)
+        var missingItems = GetMissingConditionItems(_rulesGrid.Rows[rowIndex]);
+        if (missingFields.Count > 0 || missingSpells.Count > 0 || missingItems.Count > 0)
         {
             var messages = new List<string>();
             if (missingFields.Count > 0)
@@ -2676,6 +2769,7 @@ public sealed class ModuleEditorControl : UserControl
             }
 
             messages.AddRange(missingSpells);
+            messages.AddRange(missingItems);
             return string.Join('\n', messages);
         }
 
@@ -3041,7 +3135,9 @@ public sealed class ModuleEditorControl : UserControl
             current,
             conditionFieldsProvider: () => RefreshAndBuildConditionFields(),
             spells: RefreshAndBuildConditionSpells(),
-            conditionSpellsProvider: () => RefreshAndBuildConditionSpells());
+            conditionSpellsProvider: () => RefreshAndBuildConditionSpells(),
+            items: RefreshAndBuildConditionItems(),
+            conditionItemsProvider: () => RefreshAndBuildConditionItems());
         if (editor.ShowDialog(FindForm()) != DialogResult.OK)
         {
             return;
@@ -3395,6 +3491,7 @@ public sealed class ModuleEditorControl : UserControl
         var currentMetadata = row.IsNewRow ? new RuleRowMetadata() : GetRuleMetadata(row);
         var fields = RefreshAndBuildConditionFields(includeRuleSettings: true);
         var spells = RefreshAndBuildConditionSpells();
+        var items = RefreshAndBuildConditionItems();
 
         using var editor = new ConditionEditorForm(
             fields,
@@ -3406,7 +3503,9 @@ public sealed class ModuleEditorControl : UserControl
             allowRuleSettings: true,
             conditionFieldsProvider: () => RefreshAndBuildConditionFields(includeRuleSettings: true),
             spells: spells,
-            conditionSpellsProvider: () => RefreshAndBuildConditionSpells());
+            conditionSpellsProvider: () => RefreshAndBuildConditionSpells(),
+            items: items,
+            conditionItemsProvider: () => RefreshAndBuildConditionItems());
         if (editor.ShowDialog(FindForm()) != DialogResult.OK)
         {
             return;
@@ -3468,6 +3567,12 @@ public sealed class ModuleEditorControl : UserControl
     {
         ReloadCurrentClassSpellIds();
         return _currentClassConditionSpells.ToArray();
+    }
+
+    private IReadOnlyList<ConditionItem> RefreshAndBuildConditionItems()
+    {
+        ReloadCurrentClassSpellIds();
+        return _currentClassConditionItems.ToArray();
     }
 
     private IReadOnlyList<ConditionField> BuildConditionFields(bool includeRuleSettings = false)
@@ -4366,7 +4471,9 @@ public sealed class ModuleEditorControl : UserControl
     {
         var value = persisted?.Trim() ?? string.Empty;
         if (value.Length == 0 || ModuleSpecialActions.IsPauseSpell(value)
-            || ModuleSpecialActions.IsFailedSpell(value) || ModuleSpecialActions.IsOneKeySpell(value))
+            || ModuleSpecialActions.IsFailedSpell(value)
+            || ModuleSpecialActions.IsFailedItem(value)
+            || ModuleSpecialActions.IsOneKeySpell(value))
         {
             return value;
         }

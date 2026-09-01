@@ -42,6 +42,11 @@ public sealed record ConditionSpell(long SpellId, int Index, string Name)
     public string DisplayName => $"{Name} / {SpellId}";
 }
 
+public sealed record ConditionItem(long ItemId, int Index, string Name)
+{
+    public string DisplayName => $"{Name} / {ItemId}";
+}
+
 public static class SpellIdConditionFields
 {
     public const string OneKeyAssist = "一键辅助";
@@ -55,6 +60,27 @@ public static class SpellIdConditionFields
         InsertSpell,
         CastingSpell,
         PreviousSpell
+    };
+
+    public static bool Contains(string? fieldName)
+    {
+        var normalized = fieldName?.Trim() ?? string.Empty;
+        if (normalized.StartsWith("state.", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = normalized["state.".Length..];
+        }
+
+        return Names.Contains(normalized);
+    }
+}
+
+public static class ItemIdConditionFields
+{
+    public const string InsertItem = "插入物品";
+
+    private static readonly HashSet<string> Names = new(StringComparer.Ordinal)
+    {
+        InsertItem
     };
 
     public static bool Contains(string? fieldName)
@@ -194,6 +220,15 @@ public sealed class ConditionFieldCatalog
             seen,
             ModuleSpecialActions.FailedSpell,
             ModuleSpecialActions.FailedSpell,
+            ConditionFieldType.String,
+            ConditionFieldCategory.State,
+            ClassStateCatalog.CategoryState);
+
+        AddField(
+            fields,
+            seen,
+            ModuleSpecialActions.FailedItem,
+            ModuleSpecialActions.FailedItem,
             ConditionFieldType.String,
             ConditionFieldCategory.State,
             ClassStateCatalog.CategoryState);

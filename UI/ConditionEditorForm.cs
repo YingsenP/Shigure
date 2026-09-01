@@ -165,8 +165,10 @@ public sealed class ConditionEditorForm : Form
 
     private readonly IReadOnlyList<ConditionField> _fields;
     private readonly IReadOnlyList<ConditionSpell> _spells;
+    private readonly IReadOnlyList<ConditionItem> _items;
     private readonly Func<IReadOnlyList<ConditionField>>? _conditionFieldsProvider;
     private readonly Func<IReadOnlyList<ConditionSpell>>? _conditionSpellsProvider;
+    private readonly Func<IReadOnlyList<ConditionItem>>? _conditionItemsProvider;
     private readonly string _originalCondition;
     private readonly bool _allowSubConditions;
     private readonly bool _allowRuleSettings;
@@ -196,13 +198,17 @@ public sealed class ConditionEditorForm : Form
         bool allowRuleSettings = false,
         Func<IReadOnlyList<ConditionField>>? conditionFieldsProvider = null,
         IReadOnlyList<ConditionSpell>? spells = null,
-        Func<IReadOnlyList<ConditionSpell>>? conditionSpellsProvider = null)
+        Func<IReadOnlyList<ConditionSpell>>? conditionSpellsProvider = null,
+        IReadOnlyList<ConditionItem>? items = null,
+        Func<IReadOnlyList<ConditionItem>>? conditionItemsProvider = null)
     {
         // 保存独立快照，避免父级字段集合后续刷新时影响当前弹窗；子弹窗则通过 provider 取得最新目录。
         _fields = fields.ToArray();
         _spells = (spells ?? []).ToArray();
+        _items = (items ?? []).ToArray();
         _conditionFieldsProvider = conditionFieldsProvider;
         _conditionSpellsProvider = conditionSpellsProvider;
+        _conditionItemsProvider = conditionItemsProvider;
         _originalCondition = condition ?? string.Empty;
         _allowSubConditions = allowSubConditions;
         _allowRuleSettings = allowRuleSettings;
@@ -535,12 +541,15 @@ public sealed class ConditionEditorForm : Form
     {
         var fields = _conditionFieldsProvider?.Invoke() ?? _fields;
         var spells = _conditionSpellsProvider?.Invoke() ?? _spells;
+        var items = _conditionItemsProvider?.Invoke() ?? _items;
         using var editor = new ConditionEditorForm(
             fields,
             current,
             conditionFieldsProvider: _conditionFieldsProvider,
             spells: spells,
-            conditionSpellsProvider: _conditionSpellsProvider);
+            conditionSpellsProvider: _conditionSpellsProvider,
+            items: items,
+            conditionItemsProvider: _conditionItemsProvider);
         return editor.ShowDialog(this) == DialogResult.OK ? editor.ConditionText : null;
     }
 
@@ -663,13 +672,15 @@ public sealed class ConditionEditorForm : Form
         var cell = _conditionsGrid.Rows[e.RowIndex].Cells[e.ColumnIndex];
         cell.ToolTipText = string.Empty;
         var missingSpell = GetMissingSpellMessage(_conditionsGrid.Rows[e.RowIndex]);
-        if (missingSpell is not null)
+        var missingItem = GetMissingItemMessage(_conditionsGrid.Rows[e.RowIndex]);
+        var missingMessage = missingSpell ?? missingItem;
+        if (missingMessage is not null)
         {
             e.CellStyle.BackColor = UiTheme.DangerSoft;
             e.CellStyle.ForeColor = UiTheme.Danger;
             e.CellStyle.SelectionBackColor = UiTheme.Danger;
             e.CellStyle.SelectionForeColor = UiTheme.Background;
-            cell.ToolTipText = missingSpell;
+            cell.ToolTipText = missingMessage;
             return;
         }
 
@@ -679,6 +690,7 @@ public sealed class ConditionEditorForm : Form
             {
                 "一键辅助" => "一键辅助，条件保存技能列表中的 spellId",
                 "插入法术" => "插入法术，条件保存技能列表中的 spellId",
+                "插入物品" => "插入物品，条件保存物品列表中的 itemId",
                 "施法技能" => "施法技能，条件保存技能列表中的 spellId",
                 "上个技能" => "上个技能，条件保存技能列表中的 spellId",
                 _ => e.Value?.ToString() ?? string.Empty
@@ -827,6 +839,11 @@ public sealed class ConditionEditorForm : Form
                     spell.Display,
                     spell.Missing ? null : SpellIconCatalog.Get(spell.SpellId),
                     spell.Index?.ToString(CultureInfo.InvariantCulture)),
+                ItemValueItem itemEntry => new UiDropDownOption(
+                    itemEntry.Value,
+                    itemEntry.Display,
+                    itemEntry.Missing ? null : SpellIconCatalog.GetItem(itemEntry.ItemId),
+                    itemEntry.Index?.ToString(CultureInfo.InvariantCulture)),
                 _ => new UiDropDownOption(item.ToString() ?? string.Empty, item.ToString() ?? string.Empty)
             })
             .DistinctBy(item => item.Value?.ToString(), StringComparer.Ordinal)
@@ -1395,7 +1412,7 @@ public sealed class ConditionEditorForm : Form
         var isRuleSetting = IsRuleSettingField(field);
         var ops = isRuleSetting
             ? DelayOperators
-            : SpellIdConditionFields.Contains(field?.Name)
+            : SpellIdConditionFields.Contains(field?.Name) || ItemIdConditionFields.Contains(field?.Name)
                 ? SpellOperators
                 : field is { IsCustom: false, Type: ConditionFieldType.Bool }
                     ? BoolOperators
@@ -1421,6 +1438,12 @@ public sealed class ConditionEditorForm : Form
         if (SpellIdConditionFields.Contains(field?.Name))
         {
             ConfigureSpellValueCell(row, rawValue, preserveRaw);
+            return;
+        }
+
+        if (ItemIdConditionFields.Contains(field?.Name))
+        {
+            ConfigureItemValueCell(row, rawValue, preserveRaw);
             return;
         }
 
@@ -1514,6 +1537,53 @@ public sealed class ConditionEditorForm : Form
         row.Cells[ValueColumn] = combo;
     }
 
+    private void ConfigureItemValueCell(DataGridViewRow row, string? rawValue, bool preserveRaw)
+    {
+        var combo = new DataGridViewComboBoxCell
+        {
+            DisplayStyle = DataGridViewComboBoxDisplayStyle.DropDownButton,
+            FlatStyle = FlatStyle.Flat,
+            DisplayMember = nameof(ItemValueItem.Display),
+            ValueMember = nameof(ItemValueItem.Value),
+            ValueType = typeof(string)
+        };
+        foreach (var item in _items
+                     .Where(item => item.ItemId > 0)
+                     .DistinctBy(item => item.ItemId)
+                     .OrderBy(item => item.Index)
+                     .ThenBy(item => item.ItemId))
+        {
+            combo.Items.Add(new ItemValueItem(
+                item.ItemId.ToString(CultureInfo.InvariantCulture),
+                item.DisplayName,
+                item.ItemId,
+                item.Index));
+        }
+
+        var value = preserveRaw ? rawValue?.Trim() ?? string.Empty : string.Empty;
+        if (value.Length == 0 && combo.Items.Count > 0)
+        {
+            value = ((ItemValueItem)combo.Items[0]!).Value;
+        }
+
+        if (value.Length > 0
+            && !combo.Items.Cast<ItemValueItem>().Any(item =>
+                string.Equals(item.Value, value, StringComparison.Ordinal)))
+        {
+            var parsed = long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var itemId)
+                ? itemId
+                : 0;
+            combo.Items.Insert(0, new ItemValueItem(
+                value,
+                $"itemId {value}（不存在）",
+                parsed,
+                Missing: true));
+        }
+
+        combo.Value = value;
+        row.Cells[ValueColumn] = combo;
+    }
+
     private string? GetMissingSpellMessage(DataGridViewRow row)
     {
         var field = SelectedField(row)?.Name;
@@ -1528,6 +1598,25 @@ public sealed class ConditionEditorForm : Form
             || !_spells.Any(spell => spell.SpellId == spellId))
         {
             return $"{field}不存在 spellId 为 {value} 的法术";
+        }
+
+        return null;
+    }
+
+    private string? GetMissingItemMessage(DataGridViewRow row)
+    {
+        var field = SelectedField(row)?.Name;
+        if (!ItemIdConditionFields.Contains(field))
+        {
+            return null;
+        }
+
+        var value = row.Cells[ValueColumn].Value?.ToString()?.Trim() ?? string.Empty;
+        if (!long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var itemId)
+            || itemId <= 0
+            || !_items.Any(item => item.ItemId == itemId))
+        {
+            return $"{field}不存在 itemId 为 {value} 的物品";
         }
 
         return null;
@@ -1806,6 +1895,16 @@ public sealed class ConditionEditorForm : Form
         string Value,
         string Display,
         long SpellId,
+        int? Index = null,
+        bool Missing = false)
+    {
+        public override string ToString() => Display;
+    }
+
+    private sealed record ItemValueItem(
+        string Value,
+        string Display,
+        long ItemId,
         int? Index = null,
         bool Missing = false)
     {

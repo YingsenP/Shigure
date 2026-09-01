@@ -91,6 +91,27 @@ local function FindSpellListById(spellId)
     return nil
 end
 
+local function FindItemListByName(itemName)
+    local list = Fuyutsui.itemsList
+    if not list then return nil end
+    for itemId, info in pairs(list) do
+        if type(info) == "table" and info.name == itemName and info.index then
+            return info.index, itemId, info.name
+        end
+    end
+    return nil
+end
+
+local function FindItemListById(itemId)
+    local list = Fuyutsui.itemsList
+    if not list then return nil end
+    local info = list[itemId]
+    if type(info) == "table" and info.index and info.name then
+        return info.index, itemId, info.name
+    end
+    return nil
+end
+
 function Fuyutsui:InsertSpellCommand(rest)
     rest = strtrim(rest or "")
     if rest == "" then
@@ -116,6 +137,33 @@ function Fuyutsui:InsertSpellCommand(rest)
     end
 
     self:SetInsertSpell(index, spellName, spellId)
+end
+
+function Fuyutsui:InsertItemCommand(rest)
+    rest = strtrim(rest or "")
+    if rest == "" then
+        print("|cff00ff00[Fuyutsui]|r 用法: /fu t 物品名称或itemId")
+        return
+    end
+
+    local itemInput = rest
+
+    local index, itemId, itemName
+    if itemInput:match("^%d+$") then
+        local requestedItemId = tonumber(itemInput)
+        if requestedItemId and requestedItemId > 0 then
+            index, itemId, itemName = FindItemListById(requestedItemId)
+        end
+    else
+        index, itemId, itemName = FindItemListByName(itemInput)
+    end
+
+    if not index then
+        print("|cff00ff00[Fuyutsui]|r 未在 itemsList 中找到物品: " .. itemInput)
+        return
+    end
+
+    self:SetInsertItem(index, itemName, itemId)
 end
 
 --- /fu cd 系列命令统一动作：写 Fuyutsui.BurstTime 唯一真相 + 镜像 c.cooldowns + 打印
@@ -224,6 +272,10 @@ function Fuyutsui:SlashCommand(input, editbox)
         -- 从原始 input 解析技能名或 spellId（保留中文技能名）
         local rest = input:match("^[iI]%s+(.*)$") or ""
         self:InsertSpellCommand(rest)
+    elseif command == "t" or command:match("^t%s+") then
+        -- 从原始 input 解析物品名或 itemId（保留中文物品名）
+        local rest = input:match("^[tT]%s+(.*)$") or ""
+        self:InsertItemCommand(rest)
     elseif command == "help" or command == "" then
         print("|cff00ff00Fuyutsui|r 命令列表:")
         print("爆发开关（开启 15 秒）: /fu cd")
@@ -240,6 +292,7 @@ function Fuyutsui:SlashCommand(input, editbox)
         print("显示快捷控件: /fu show")
         print("临时 delay 标志（db.char.delay 置 1 持续 x 秒后归零）: /fu delay [秒]，省略秒数则为 1 秒")
         print("插入法术: /fu i 技能名称或spellId")
+        print("插入物品: /fu t 物品名称或itemId")
         print("帮助: /fu help")
     else
         print("输入 /fu help 查看命令。")

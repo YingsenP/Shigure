@@ -190,6 +190,7 @@ function Fuyutsui:UNIT_SPELLCAST_SUCCEEDED(_, unitTarget, castGUID, spellID, cas
     if unitTarget ~= "player" or isSec(spellID) then return end
     self:RefreshDrinkStatus(spellID)
     self:UpdateInsertSpellBySuccess(spellID)
+    self:UpdateInsertItemBySuccess(spellID)
     self:PreviousSkill(spellID)
     if spellID == 384255 then
         self:ClearAllFuyutsuiBars()

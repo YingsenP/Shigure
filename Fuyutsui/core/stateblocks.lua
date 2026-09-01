@@ -117,6 +117,7 @@ local stateBlockGetters = {
         ["生命值"] = function() return state.healthPercent or 0 end,
         ["一键辅助"] = function() return state.assistantSpell or 0 end,
         ["插入法术"] = function() return state.insertSpell or 0 end,
+        ["插入物品"] = function() return state.insertItem or 0 end,
         ["队伍类型"] = function() return state.groupType or 0 end,
         ["队伍人数"] = function() return state.groupCount or 0 end,
         ["首领战"] = function() return state.bossID or 0 end,
