@@ -32,7 +32,7 @@ Shigure 是一个 Windows WinForms 桌面程序。它从目标窗口读取 Fuyut
 
 程序采用单实例运行；再次启动时会提示“Shigure 已经在运行”，随后退出新实例。
 
-当前版本：`1.2.1.17`
+当前版本：`1.2.1.19`
 
 ## 主要功能
 
@@ -45,8 +45,8 @@ Shigure 是一个 Windows WinForms 桌面程序。它从目标窗口读取 Fuyut
 ## 界面
 
 - 置顶浮动条：显示程序名、当前职业图标颜色和逻辑状态，提供 `开启/关闭`、`设置`、`✕` 按钮。窗口可拖动和缩放，显示后自动启动运行循环。
-- `通用`：设置触发键和发送模式；从项目 Fuyutsui 更新配置并同步游戏插件；按实时环境选择模块，或按职业、专精、英雄天赋和队伍类型指定默认模块；从 GitHub 按需下载或更新技能图标数据包。
-- `配置`：直接编辑项目 `Fuyutsui/class/*.lua` 中的 `ClassBlocks`，包括状态、光环、法术、物品和队伍字段；独立物品页维护 `itemId`、名称及是否装备中，技能列表页可编辑 `Fuyutsui.spellsList` 中索引 1–100 的法术 ID、索引和名称，也可输入 spellId 与名称并自动分配空闲索引。旧版稀疏索引格式只读，需先迁移到 `states/auras/spells/items/group` 格式。
+- `通用`：设置触发键和发送模式；从项目 Fuyutsui 更新配置并同步游戏插件；按实时环境选择模块，或按职业、专精、英雄天赋和队伍类型指定默认模块；从 GitHub 按需下载或更新技能/物品图标数据包。
+- `配置`：直接编辑项目 `Fuyutsui/class/*.lua` 中的 `ClassBlocks`，包括状态、光环、法术、物品和队伍字段；物品页为当前专精列表与全量物品数据库双栏，维护 `itemId`、名称及是否装备中；技能列表页可编辑 `Fuyutsui.spellsList` 中索引 1–100 的法术 ID、索引和名称，也可从技能数据库添加。旧版稀疏索引格式只读，需先迁移到 `states/auras/spells/items/group` 格式。
 - `宏`：编辑项目 `Fuyutsui/core/classmacros.lua` 中各职业的动态宏、静态宏和特殊宏。动态宏每项占用 30 个团队点名槽位；特殊宏的技能名必须手工填写，不从宏正文解析，生成映射时固定为无目标、无宏条件。
 - `模块`：新建、编辑、删除本地模块，维护作者、推荐天赋、匹配条件、动态字段和有序规则。规则支持拖拽、上移、下移、复制与插入。
 - `状态`：分栏显示基础状态、`auras`、`spells` 和模块计算出的动态单位/数值。
@@ -97,7 +97,7 @@ dotnet run --project .\Shigure.csproj -- --toggle XBUTTON2 --mode switch --logic
 dotnet build .\Shigure.csproj
 ```
 
-应用图标为 `Assets\arasaka-icon.ico`。项目会把 `Fuyutsui/**`、`config/*.json`、`keymap/*.json` 和 `wow_process.txt` 复制到输出/发布目录；应用、职业、专精和少量程序专用图标作为嵌入资源打包。完整技能图标库不随发布版分发，用户可在“设置 → 通用 → 下载数据包”中从 GitHub 最新正式 Release 下载到 `data\SpellIcons.shgpack`。缺少数据包时技能图标与添加技能的 spellId 联想保持关闭，但仍可手工编辑技能。
+应用图标为 `Assets\arasaka-icon.ico`。项目会把 `Fuyutsui/**`、`config/*.json`、`keymap/*.json` 和 `wow_process.txt` 复制到输出/发布目录；应用、职业、专精和少量程序专用图标作为嵌入资源打包。完整技能/物品图标库不随发布版分发，用户可在“设置 → 通用 → 下载数据包”中从 GitHub 最新正式 Release 下载到 `data\SpellIcons.shgpack`。缺少数据包时技能图标与添加技能的 spellId 联想保持关闭，但仍可手工编辑技能。仅技能旧包仍可加载技能；物品搜索库关闭，手工编辑物品保持可用。
 
 ## 项目结构
 
@@ -114,12 +114,12 @@ Fuyutsui\               权威插件源码、配置/宏编辑源及游戏部署�
 config\                 由 Fuyutsui 职业配置生成的扫描映射
 keymap\                 由 Fuyutsui 职业宏生成的按键映射
 module\                 模块示例模板（运行时模块保存在我的文档目录 `{MyDocuments}/Shigure/module`）
-SpellIconPackage\       本地技能图标数据包清单、构建与修复工具（Git 忽略）
+SpellIconPackage\       本地技能/物品图标数据包清单、构建与修复工具（Git 忽略）
 Tools\                  辅助脚本
 ```
 
 `SpellIconPackage/` 中保存数据包源清单、本地构建工具和生成的
-`SpellIcons.shgpack`；整个目录由 `.gitignore` 排除，不提交到仓库。
+`SpellIcons.shgpack`；整个目录由 `.gitignore` 排除，不提交到仓库。完整包在 v1 技能索引后追加物品扩展段；仅技能旧包可被新版读取，此时只禁用物品搜索库。
 
 ## Fuyutsui 配置同步
 

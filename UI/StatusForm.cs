@@ -239,6 +239,18 @@ public sealed class StatusForm : Form
     public StatusForm()
     {
         InitializeComponent();
+        UiTheme.SetListViewSubItemIconResolver(_stateList, ResolveStateListIcon);
+        SpellIconCatalog.CatalogChanged += OnSpellIconCatalogChanged;
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            SpellIconCatalog.CatalogChanged -= OnSpellIconCatalogChanged;
+        }
+
+        base.Dispose(disposing);
     }
 
     protected override void OnHandleCreated(EventArgs e)
@@ -274,6 +286,27 @@ public sealed class StatusForm : Form
         }
 
         base.OnFormClosing(e);
+    }
+
+    private static Image? ResolveStateListIcon(ListViewItem item, int columnIndex)
+        => columnIndex == 1 && item.Tag is long itemId && itemId > 0
+            ? SpellIconCatalog.GetItem(itemId)
+            : null;
+
+    private void OnSpellIconCatalogChanged()
+    {
+        if (IsDisposed || Disposing || !IsHandleCreated)
+        {
+            return;
+        }
+
+        if (InvokeRequired)
+        {
+            BeginInvoke(OnSpellIconCatalogChanged);
+            return;
+        }
+
+        _stateList.Invalidate();
     }
 
     private void InitializeComponent()
@@ -1525,7 +1558,13 @@ public sealed class StatusForm : Form
                 }
 
                 index++;
-                items.Add(new ListViewItem(new[] { index.ToString(), key, UiTheme.FormatValue(value) }));
+                var row = new ListViewItem(new[] { index.ToString(), key, UiTheme.FormatValue(value) });
+                if (snapshot.State.ItemIds.TryGetValue(key, out var itemId))
+                {
+                    row.Tag = itemId;
+                }
+
+                items.Add(row);
             }
         }
 
@@ -1784,7 +1823,8 @@ public sealed class StatusForm : Form
         {
             var current = listView.Items[row];
             var next = items[row];
-            if (current.ToolTipText != next.ToolTipText)
+            if (current.ToolTipText != next.ToolTipText
+                || !Equals(current.Tag, next.Tag))
             {
                 return false;
             }
@@ -1827,6 +1867,7 @@ public sealed class StatusForm : Form
             var current = listView.Items[row];
             var next = items[row];
             current.ToolTipText = next.ToolTipText;
+            current.Tag = next.Tag;
             for (var column = 0; column < next.SubItems.Count; column++)
             {
                 var nextText = next.SubItems[column].Text;

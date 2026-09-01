@@ -214,6 +214,7 @@ public sealed class ConditionEditorForm : Form
         }
 
         InitializeComponent();
+        SpellIconCatalog.CatalogChanged += OnSpellIconCatalogChanged;
 
         foreach (var term in ConditionExpression.Parse(condition))
         {
@@ -268,9 +269,26 @@ public sealed class ConditionEditorForm : Form
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
+        SpellIconCatalog.CatalogChanged -= OnSpellIconCatalogChanged;
         CloseConditionComboDropDown();
         SaveWindowSize();
         base.OnFormClosed(e);
+    }
+
+    private void OnSpellIconCatalogChanged()
+    {
+        if (IsDisposed || Disposing || !IsHandleCreated)
+        {
+            return;
+        }
+
+        if (InvokeRequired)
+        {
+            BeginInvoke(OnSpellIconCatalogChanged);
+            return;
+        }
+
+        _conditionsGrid.Invalidate();
     }
 
     private void RestoreCachedWindowSize()
@@ -897,6 +915,11 @@ public sealed class ConditionEditorForm : Form
 
     private static Image? ResolveFieldIcon(FieldItem field)
     {
+        if (field.ItemId is > 0)
+        {
+            return SpellIconCatalog.GetItem(field.ItemId.Value);
+        }
+
         if (field.IsCustom
             || field.Category is not (ConditionFieldCategory.Spell or ConditionFieldCategory.Aura))
         {
@@ -1280,7 +1303,8 @@ public sealed class ConditionEditorForm : Form
                 field.Type,
                 field.Category,
                 field.Classification,
-                IsCustom: false));
+                IsCustom: false,
+                field.ItemId));
         }
 
         FieldItem? selected = null;
@@ -1772,7 +1796,8 @@ public sealed class ConditionEditorForm : Form
         ConditionFieldType Type,
         ConditionFieldCategory Category,
         string? Classification,
-        bool IsCustom)
+        bool IsCustom,
+        long? ItemId = null)
     {
         public override string ToString() => Display;
     }

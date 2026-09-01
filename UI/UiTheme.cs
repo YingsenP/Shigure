@@ -18,6 +18,7 @@ internal static class UiTheme
 
     private static readonly Dictionary<int, Image?> ClassIcons = new();
     private static readonly Dictionary<(int ClassId, int SpecId), Image?> SpecIcons = new();
+    private static readonly ConditionalWeakTable<ListView, Func<ListViewItem, int, Image?>> ListViewSubItemIcons = new();
     private static readonly ConditionalWeakTable<ListView, ListColumnLayoutState> ListColumnLayouts = new();
 
     private const int DwmwaUseImmersiveDarkMode = 20;
@@ -907,6 +908,13 @@ internal static class UiTheme
         return icon;
     }
 
+    public static void SetListViewSubItemIconResolver(
+        ListView listView,
+        Func<ListViewItem, int, Image?> resolver)
+    {
+        ListViewSubItemIcons.Add(listView, resolver);
+    }
+
     public static void StyleListView(ListView listView, Font font)
     {
         listView.Dock = DockStyle.Fill;
@@ -967,7 +975,27 @@ internal static class UiTheme
                 e.Graphics.FillRectangle(accent, e.Bounds.Left, e.Bounds.Top + 4, 3, e.Bounds.Height - 8);
             }
 
-            var textBounds = new Rectangle(e.Bounds.X + 8, e.Bounds.Y, e.Bounds.Width - 10, e.Bounds.Height);
+            var textLeft = e.Bounds.X + 8;
+            var textWidth = e.Bounds.Width - 10;
+            if (ListViewSubItemIcons.TryGetValue(listView, out var iconResolver))
+            {
+                var icon = iconResolver(e.Item, e.ColumnIndex);
+                if (icon is not null)
+                {
+                    var iconSize = Math.Min(18, Math.Max(14, e.Bounds.Height - 10));
+                    var iconBounds = new Rectangle(
+                        e.Bounds.X + 8,
+                        e.Bounds.Y + (e.Bounds.Height - iconSize) / 2,
+                        iconSize,
+                        iconSize);
+                    e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    e.Graphics.DrawImage(icon, iconBounds);
+                    textLeft = iconBounds.Right + 6;
+                    textWidth = Math.Max(0, e.Bounds.Right - 8 - textLeft);
+                }
+            }
+
+            var textBounds = new Rectangle(textLeft, e.Bounds.Y, textWidth, e.Bounds.Height);
             TextRenderer.DrawText(
                 e.Graphics,
                 e.SubItem?.Text ?? string.Empty,

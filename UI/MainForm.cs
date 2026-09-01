@@ -1242,7 +1242,7 @@ public sealed class MainForm : Form, IMessageFilter
         ConfigureSettingsCardRows(spellIconPackageCard, 32, 30, null, settingsActionButtonHeight);
         spellIconPackageCard.Controls.Add(CreateTitle("下载数据包"), 0, 0);
         spellIconPackageCard.Controls.Add(
-            CreateDescription("从 GitHub 下载或更新技能图标数据包；不会随发布包自动附带"),
+            CreateDescription("从 GitHub 下载或更新技能/物品图标数据包；不会随发布包自动附带"),
             0,
             1);
 
@@ -1304,7 +1304,7 @@ public sealed class MainForm : Form, IMessageFilter
                 : "正在检查……";
         });
 
-        AppendLog("开始检查 GitHub 技能图标数据包");
+        AppendLog("开始检查 GitHub 技能/物品图标数据包");
         try
         {
             var result = await _spellIconPackageDownloadService.UpdateAsync(progress, cancellationToken);
@@ -1315,15 +1315,16 @@ public sealed class MainForm : Form, IMessageFilter
 
             var sizeText = $"{result.Size / 1024d / 1024d:F2} MiB";
             var hashText = result.Sha256[..Math.Min(12, result.Sha256.Length)];
+            var kind = SpellIconCatalog.IsItemDatabaseAvailable ? "完整包" : "仅技能旧包";
             if (result.UpToDate)
             {
-                _spellIconPackageStatusLabel.Text = $"已是最新：{sizeText}，SHA-256 {hashText}…";
-                AppendLog("技能图标数据包已是最新，本地文件未修改");
+                _spellIconPackageStatusLabel.Text = $"已是最新（{kind}）：{sizeText}，SHA-256 {hashText}…";
+                AppendLog("技能/物品图标数据包已是最新，本地文件未修改");
             }
             else
             {
-                _spellIconPackageStatusLabel.Text = $"安装完成：{sizeText}，SHA-256 {hashText}…";
-                AppendLog("技能图标数据包已下载、校验并热加载");
+                _spellIconPackageStatusLabel.Text = $"安装完成（{kind}）：{sizeText}，SHA-256 {hashText}…";
+                AppendLog("技能/物品图标数据包已下载、校验并热加载");
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -1331,7 +1332,7 @@ public sealed class MainForm : Form, IMessageFilter
             if (!_shutdownStarted)
             {
                 _spellIconPackageStatusLabel.Text = "下载已取消；原数据包未修改。";
-                AppendLog("技能图标数据包下载已取消");
+                AppendLog("技能/物品图标数据包下载已取消");
             }
         }
         catch (Exception ex)
@@ -1340,7 +1341,7 @@ public sealed class MainForm : Form, IMessageFilter
             {
                 _spellIconPackageStatusLabel.Text = $"下载失败：{ex.Message}";
                 _settingsToolTip.SetToolTip(_spellIconPackageStatusLabel, ex.ToString());
-                AppendLog($"技能图标数据包下载失败: {ex.Message}");
+                AppendLog($"技能/物品图标数据包下载失败: {ex.Message}");
                 MessageBox.Show(
                     this,
                     ex.Message,
@@ -1367,21 +1368,24 @@ public sealed class MainForm : Form, IMessageFilter
         if (SpellIconCatalog.IsPackageAvailable && File.Exists(packagePath))
         {
             var length = new FileInfo(packagePath).Length;
-            _spellIconPackageStatusLabel.Text =
-                $"已安装：{length / 1024d / 1024d:F2} MiB。点击检查 GitHub 更新。";
+            var sizeText = $"{length / 1024d / 1024d:F2} MiB";
+            _spellIconPackageStatusLabel.Text = SpellIconCatalog.IsItemDatabaseAvailable
+                ? $"已安装完整包：{sizeText}。点击检查 GitHub 更新。"
+                : $"已安装仅技能旧包：{sizeText}。物品搜索库不可用，可检查更新以获取完整包。";
             _downloadSpellIconPackageButton.Text = "检查更新";
         }
         else if (File.Exists(packagePath))
         {
-            _spellIconPackageStatusLabel.Text = "本地数据包损坏或格式不受支持；技能图标与添加技能联想不可用。";
+            _spellIconPackageStatusLabel.Text = "本地数据包损坏或格式不受支持；技能/物品图标与添加联想不可用。";
             _downloadSpellIconPackageButton.Text = "重新下载";
         }
         else
         {
-            _spellIconPackageStatusLabel.Text = "未安装；技能图标与添加技能联想不可用。";
+            _spellIconPackageStatusLabel.Text = "未安装；技能/物品图标与添加技能、物品联想不可用。";
             _downloadSpellIconPackageButton.Text = "下载数据包";
         }
 
+        _downloadSpellIconPackageButton.Enabled = true;
         _settingsToolTip.SetToolTip(
             _spellIconPackageStatusLabel,
             _spellIconPackageStatusLabel.Text);

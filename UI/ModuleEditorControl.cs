@@ -61,6 +61,8 @@ public sealed class ModuleEditorControl : UserControl
     private readonly List<ModuleValueAdjustment> _valueAdjustments = new();
     private readonly Dictionary<string, List<long>> _currentClassSpellIdsByName =
         new(StringComparer.Ordinal);
+    private readonly Dictionary<string, List<long>> _currentSpecItemIdsByName =
+        new(StringComparer.Ordinal);
     private readonly List<ConditionSpell> _currentClassConditionSpells = new();
     private HashSet<string>? _availableConditionFields;
     private HashSet<string>? _availableGroupConditionFields;
@@ -595,6 +597,8 @@ public sealed class ModuleEditorControl : UserControl
         _specBox.SelectedIndexChanged += (_, _) =>
         {
             ResetHeroTalentOptions(_heroTalentBox, ReadMatchCombo(_classBox), ReadMatchCombo(_specBox));
+            ReloadCurrentClassSpellIds();
+            RefreshRuleSpellIcons();
             RefreshAdjustmentFieldColumn();
             InvalidateConditionFieldValidation();
             _rulesGrid.Invalidate();
@@ -1202,6 +1206,7 @@ public sealed class ModuleEditorControl : UserControl
     private void ReloadCurrentClassSpellIds()
     {
         _currentClassSpellIdsByName.Clear();
+        _currentSpecItemIdsByName.Clear();
         _currentClassConditionSpells.Clear();
         var classId = ReadMatchCombo(_classBox);
         if (classId is null)
@@ -1239,6 +1244,31 @@ public sealed class ModuleEditorControl : UserControl
                     spellIds.Add(spell.SpellId);
                 }
             }
+
+            var specId = ReadMatchCombo(_specBox);
+            if (specId is not null && document.Specs.TryGetValue(specId.Value, out var spec))
+            {
+                foreach (var item in spec.Items)
+                {
+                    if (item.ItemId is not { } itemId || itemId <= 0 || string.IsNullOrWhiteSpace(item.Name))
+                    {
+                        continue;
+                    }
+
+                    var name = item.Name.Trim();
+                    SpellIconCatalog.RegisterItem(itemId, name);
+                    if (!_currentSpecItemIdsByName.TryGetValue(name, out var itemIds))
+                    {
+                        itemIds = [];
+                        _currentSpecItemIdsByName[name] = itemIds;
+                    }
+
+                    if (!itemIds.Contains(itemId))
+                    {
+                        itemIds.Add(itemId);
+                    }
+                }
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
             or InvalidDataException or ArgumentException)
@@ -1253,6 +1283,33 @@ public sealed class ModuleEditorControl : UserControl
         if (string.IsNullOrWhiteSpace(normalized))
         {
             return null;
+        }
+
+        if (_currentSpecItemIdsByName.TryGetValue(normalized, out var itemIds))
+        {
+            foreach (var itemId in itemIds)
+            {
+                var icon = SpellIconCatalog.GetItem(itemId);
+                if (icon is not null)
+                {
+                    return icon;
+                }
+            }
+        }
+
+        if (SpellIconCatalog.TryParseItemReference(normalized, out var explicitItemId))
+        {
+            var icon = SpellIconCatalog.GetItem(explicitItemId);
+            if (icon is not null)
+            {
+                return icon;
+            }
+        }
+
+        var officialItemIcon = SpellIconCatalog.GetItem(normalized);
+        if (officialItemIcon is not null)
+        {
+            return officialItemIcon;
         }
 
         if (_currentClassSpellIdsByName.TryGetValue(normalized, out var spellIds))

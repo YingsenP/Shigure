@@ -1,20 +1,30 @@
 using System.Drawing;
+using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace Shigure;
 
 internal sealed record SpellSuggestion(long SpellId, string Name);
 
+internal sealed record ItemSuggestion(long ItemId, string Name);
+
 /// <summary>
-/// 技能名称/ID 到技能图标的只读目录。完整目录只来自外置数据包；数据包缺失或
-/// 损坏时，技能图标与 spellId 联想均不可用。
+/// 技能/物品名称与 ID 到图标的只读目录。完整目录只来自外置数据包；数据包缺失或
+/// 损坏时，技能图标与 spellId 联想均不可用。仅技能旧包仍可加载技能，此时物品搜索库关闭。
 /// </summary>
 internal static class SpellIconCatalog
 {
     private static readonly object SyncRoot = new();
     private static readonly Dictionary<long, Image> Icons = new();
+    private static readonly Dictionary<long, Image> ItemIcons = new();
     private static readonly Dictionary<string, Image?> NamedIcons = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, long> RegisteredSpellIdsByName = new(StringComparer.Ordinal);
     private static readonly Dictionary<long, string> RegisteredSpellNamesById = new();
+    private static readonly Dictionary<string, long> RegisteredItemIdsByName = new(StringComparer.Ordinal);
+    private static readonly Dictionary<long, string> RegisteredItemNamesById = new();
+    private static readonly Regex ItemReferenceRegex = new(
+        @"item:(\d+)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
     private static readonly Dictionary<long, string> SpellIdIconResources = new()
     {
@@ -39,7 +49,9 @@ internal static class SpellIconCatalog
 
     private static SpellIconPackage? _package;
     private static Dictionary<string, long> _spellIdsByName = new(StringComparer.Ordinal);
+    private static Dictionary<string, long> _itemIdsByName = new(StringComparer.Ordinal);
     private static IReadOnlyList<SpellSuggestion> _suggestionsBySpellId = Array.Empty<SpellSuggestion>();
+    private static IReadOnlyList<ItemSuggestion> _suggestionsByItemId = Array.Empty<ItemSuggestion>();
 
     static SpellIconCatalog()
     {
@@ -64,6 +76,17 @@ internal static class SpellIconCatalog
             lock (SyncRoot)
             {
                 return _package is not null;
+            }
+        }
+    }
+
+    internal static bool IsItemDatabaseAvailable
+    {
+        get
+        {
+            lock (SyncRoot)
+            {
+                return _package is { HasItemDatabase: true };
             }
         }
     }
@@ -116,8 +139,8 @@ internal static class SpellIconCatalog
                 icon = LoadResource(resourceName);
             }
 
-            icon ??= _package.LoadIcon(spellId);
-            return icon is null ? null : CacheLocked(spellId, icon);
+            icon ??= _package.LoadSpellIcon(spellId);
+            return icon is null ? null : CacheLocked(Icons, spellId, icon);
         }
     }
 
@@ -147,6 +170,37 @@ internal static class SpellIconCatalog
         }
     }
 
+    public static Image? GetItem(long itemId)
+    {
+        if (itemId <= 0)
+        {
+            return null;
+        }
+
+        lock (SyncRoot)
+        {
+            if (_package is not { HasItemDatabase: true })
+            {
+                return null;
+            }
+
+            if (ItemIcons.TryGetValue(itemId, out var cached))
+            {
+                return cached;
+            }
+
+            var icon = _package.LoadItemIcon(itemId);
+            return icon is null ? null : CacheLocked(ItemIcons, itemId, icon);
+        }
+    }
+
+    public static Image? GetItem(string? itemName)
+    {
+        return TryResolveItemId(itemName, out var itemId)
+            ? GetItem(itemId)
+            : null;
+    }
+
     public static void Register(long spellId, string? spellName, bool overwriteIdName = false)
     {
         var normalized = spellName?.Trim();
@@ -171,6 +225,22 @@ internal static class SpellIconCatalog
         }
     }
 
+    public static void RegisterItem(long itemId, string? itemName)
+    {
+        var normalized = itemName?.Trim();
+        if (itemId <= 0 || string.IsNullOrWhiteSpace(normalized))
+        {
+            return;
+        }
+
+        lock (SyncRoot)
+        {
+            RegisteredItemIdsByName[normalized] = itemId;
+            RegisteredItemNamesById.TryAdd(itemId, normalized);
+            _itemIdsByName[normalized] = itemId;
+        }
+    }
+
     internal static string? ResolveSuggestionName(long spellId, string? packageName)
     {
         if (!string.IsNullOrWhiteSpace(packageName))
@@ -184,11 +254,33 @@ internal static class SpellIconCatalog
         }
     }
 
+    internal static string? ResolveItemSuggestionName(long itemId, string? packageName)
+    {
+        if (!string.IsNullOrWhiteSpace(packageName))
+        {
+            return packageName;
+        }
+
+        lock (SyncRoot)
+        {
+            return RegisteredItemNamesById.GetValueOrDefault(itemId)
+                   ?? _package?.ItemNamesById.GetValueOrDefault(itemId);
+        }
+    }
+
     internal static IReadOnlyDictionary<long, string> GetRegisteredSpellNamesSnapshot()
     {
         lock (SyncRoot)
         {
             return new Dictionary<long, string>(RegisteredSpellNamesById);
+        }
+    }
+
+    internal static IReadOnlyDictionary<long, string> GetRegisteredItemNamesSnapshot()
+    {
+        lock (SyncRoot)
+        {
+            return new Dictionary<long, string>(RegisteredItemNamesById);
         }
     }
 
@@ -200,6 +292,54 @@ internal static class SpellIconCatalog
                 ? Array.Empty<SpellSuggestion>()
                 : _suggestionsBySpellId;
         }
+    }
+
+    internal static IReadOnlyList<ItemSuggestion> GetItemSuggestionsSnapshot()
+    {
+        lock (SyncRoot)
+        {
+            return _package is { HasItemDatabase: true }
+                ? _suggestionsByItemId
+                : Array.Empty<ItemSuggestion>();
+        }
+    }
+
+    internal static bool TryResolveItemId(string? text, out long itemId)
+    {
+        itemId = 0;
+        var normalized = text?.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return false;
+        }
+
+        if (TryParseItemReference(normalized, out itemId))
+        {
+            return true;
+        }
+
+        lock (SyncRoot)
+        {
+            return _itemIdsByName.TryGetValue(normalized, out itemId);
+        }
+    }
+
+    internal static bool TryParseItemReference(string? text, out long itemId)
+    {
+        itemId = 0;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var match = ItemReferenceRegex.Match(text);
+        return match.Success
+               && long.TryParse(
+                   match.Groups[1].Value,
+                   NumberStyles.None,
+                   CultureInfo.InvariantCulture,
+                   out itemId)
+               && itemId > 0;
     }
 
     public static Image? GetLastRuleRowIcon()
@@ -262,7 +402,7 @@ internal static class SpellIconCatalog
 
         if (failure is not null)
         {
-            throw new IOException("安装技能图标数据包失败，已尝试恢复原数据包。", failure);
+            throw new IOException("安装技能/物品图标数据包失败，已尝试恢复原数据包。", failure);
         }
     }
 
@@ -297,15 +437,15 @@ internal static class SpellIconCatalog
         }
     }
 
-    private static Image CacheLocked(long spellId, Image icon)
+    private static Image CacheLocked(Dictionary<long, Image> cache, long id, Image icon)
     {
-        if (Icons.TryGetValue(spellId, out var cached))
+        if (cache.TryGetValue(id, out var cached))
         {
             icon.Dispose();
             return cached;
         }
 
-        Icons[spellId] = icon;
+        cache[id] = icon;
         return icon;
     }
 
@@ -343,9 +483,11 @@ internal static class SpellIconCatalog
     private static void RebuildIndexesLocked()
     {
         _spellIdsByName = new Dictionary<string, long>(RegisteredSpellIdsByName, StringComparer.Ordinal);
+        _itemIdsByName = new Dictionary<string, long>(RegisteredItemIdsByName, StringComparer.Ordinal);
         if (_package is null)
         {
             _suggestionsBySpellId = Array.Empty<SpellSuggestion>();
+            _suggestionsByItemId = Array.Empty<ItemSuggestion>();
             return;
         }
 
@@ -360,6 +502,24 @@ internal static class SpellIconCatalog
                     spellId,
                     _package.SpellNamesById.GetValueOrDefault(spellId) ?? string.Empty))
                 .ToArray());
+
+        if (!_package.HasItemDatabase)
+        {
+            _suggestionsByItemId = Array.Empty<ItemSuggestion>();
+            return;
+        }
+
+        foreach (var (name, itemId) in _package.ItemIdsByName)
+        {
+            _itemIdsByName.TryAdd(name, itemId);
+        }
+
+        _suggestionsByItemId = Array.AsReadOnly(
+            _package.ItemIds
+                .Select(itemId => new ItemSuggestion(
+                    itemId,
+                    _package.ItemNamesById.GetValueOrDefault(itemId) ?? string.Empty))
+                .ToArray());
     }
 
     private static void DisposeImageCachesLocked()
@@ -370,6 +530,12 @@ internal static class SpellIconCatalog
         }
 
         Icons.Clear();
+        foreach (var image in ItemIcons.Values)
+        {
+            image.Dispose();
+        }
+
+        ItemIcons.Clear();
         foreach (var image in NamedIcons.Values)
         {
             image?.Dispose();
@@ -381,13 +547,17 @@ internal static class SpellIconCatalog
     private sealed class SpellIconPackage : IDisposable
     {
         private static readonly byte[] Magic = "SHGICN1\0"u8.ToArray();
+        private static readonly byte[] ItemFooterMagic = "SHGITM1\0"u8.ToArray();
         private const int Version = 1;
         private const int HeaderSize = 56;
         private const int RecordSize = 12;
+        private const int ItemFooterSize = 48;
 
         private readonly FileStream _stream;
         private readonly long[] _spellIds;
-        private readonly int[] _iconIndices;
+        private readonly int[] _spellIconIndices;
+        private readonly long[] _itemIds;
+        private readonly int[] _itemIconIndices;
         private readonly long[] _iconOffsets;
         private readonly int[] _iconLengths;
 
@@ -423,7 +593,7 @@ internal static class SpellIconCatalog
                 }
 
                 _spellIds = new long[spellCount];
-                _iconIndices = new int[spellCount];
+                _spellIconIndices = new int[spellCount];
                 _stream.Position = spellMapOffset;
                 for (var index = 0; index < spellCount; index++)
                 {
@@ -438,7 +608,7 @@ internal static class SpellIconCatalog
                     }
 
                     _spellIds[index] = spellId;
-                    _iconIndices[index] = iconIndex;
+                    _spellIconIndices[index] = iconIndex;
                 }
 
                 _iconOffsets = new long[iconCount];
@@ -485,6 +655,14 @@ internal static class SpellIconCatalog
                 {
                     throw new InvalidDataException("Spell icon package index size mismatch.");
                 }
+
+                ItemIdsByName = new Dictionary<string, long>(StringComparer.Ordinal);
+                ItemNamesById = new Dictionary<long, string>();
+                if (!TryReadItemExtension(reader, dataOffset, iconCount, out _itemIds, out _itemIconIndices))
+                {
+                    _itemIds = [];
+                    _itemIconIndices = [];
+                }
             }
             catch
             {
@@ -495,7 +673,11 @@ internal static class SpellIconCatalog
 
         public Dictionary<string, long> SpellIdsByName { get; }
         public Dictionary<long, string> SpellNamesById { get; }
+        public Dictionary<string, long> ItemIdsByName { get; }
+        public Dictionary<long, string> ItemNamesById { get; }
         public IReadOnlyList<long> SpellIds => _spellIds;
+        public IReadOnlyList<long> ItemIds => _itemIds;
+        public bool HasItemDatabase => _itemIds.Length > 0;
 
         public static SpellIconPackage Open(string path) => new(path);
 
@@ -512,15 +694,111 @@ internal static class SpellIconCatalog
             }
         }
 
-        public Image? LoadIcon(long spellId)
+        public Image? LoadSpellIcon(long spellId)
         {
             var spellIndex = Array.BinarySearch(_spellIds, spellId);
-            if (spellIndex < 0)
+            return spellIndex < 0 ? null : LoadIconBlob(_spellIconIndices[spellIndex]);
+        }
+
+        public Image? LoadItemIcon(long itemId)
+        {
+            var itemIndex = Array.BinarySearch(_itemIds, itemId);
+            return itemIndex < 0 ? null : LoadIconBlob(_itemIconIndices[itemIndex]);
+        }
+
+        public void Dispose() => _stream.Dispose();
+
+        private bool TryReadItemExtension(
+            BinaryReader reader,
+            long dataOffset,
+            int iconCount,
+            out long[] itemIds,
+            out int[] itemIconIndices)
+        {
+            itemIds = [];
+            itemIconIndices = [];
+            if (_stream.Length < dataOffset + ItemFooterSize)
             {
-                return null;
+                return false;
             }
 
-            var iconIndex = _iconIndices[spellIndex];
+            var footerOffset = _stream.Length - ItemFooterSize;
+            if (footerOffset < dataOffset)
+            {
+                return false;
+            }
+
+            _stream.Position = footerOffset;
+            var magic = reader.ReadBytes(ItemFooterMagic.Length);
+            if (!magic.SequenceEqual(ItemFooterMagic))
+            {
+                return false;
+            }
+
+            var itemCount = reader.ReadInt32();
+            var itemNameCount = reader.ReadInt32();
+            var itemMapOffset = reader.ReadInt64();
+            var itemNameOffset = reader.ReadInt64();
+            _ = reader.ReadInt64();
+            _ = reader.ReadInt64();
+            if (itemCount is < 1 or > 2_000_000
+                || itemNameCount is < 0 or > 2_000_000
+                || itemMapOffset < dataOffset
+                || itemNameOffset != itemMapOffset + (long)itemCount * RecordSize
+                || itemNameOffset > footerOffset)
+            {
+                throw new InvalidDataException("Invalid item extension footer in icon package.");
+            }
+
+            itemIds = new long[itemCount];
+            itemIconIndices = new int[itemCount];
+            _stream.Position = itemMapOffset;
+            for (var index = 0; index < itemCount; index++)
+            {
+                var itemId = reader.ReadInt64();
+                var iconIndex = reader.ReadInt32();
+                if (itemId <= 0
+                    || index > 0 && itemId <= itemIds[index - 1]
+                    || iconIndex < 0
+                    || iconIndex >= iconCount)
+                {
+                    throw new InvalidDataException("Invalid item map in icon package.");
+                }
+
+                itemIds[index] = itemId;
+                itemIconIndices[index] = iconIndex;
+            }
+
+            _stream.Position = itemNameOffset;
+            for (var index = 0; index < itemNameCount; index++)
+            {
+                var itemId = reader.ReadInt64();
+                var byteLength = reader.ReadInt32();
+                if (itemId <= 0
+                    || byteLength is < 1 or > 4096
+                    || _stream.Position > footerOffset - byteLength)
+                {
+                    throw new InvalidDataException("Invalid item name index in icon package.");
+                }
+
+                var name = System.Text.Encoding.UTF8.GetString(reader.ReadBytes(byteLength));
+                if (!string.IsNullOrWhiteSpace(name))
+                {
+                    ItemIdsByName.TryAdd(name, itemId);
+                    ItemNamesById.TryAdd(itemId, name);
+                }
+            }
+
+            if (_stream.Position != footerOffset)
+            {
+                throw new InvalidDataException("Item name table size mismatch in icon package.");
+            }
+
+            return true;
+        }
+
+        private Image? LoadIconBlob(int iconIndex)
+        {
             var bytes = new byte[_iconLengths[iconIndex]];
             try
             {
@@ -535,7 +813,5 @@ internal static class SpellIconCatalog
                 return null;
             }
         }
-
-        public void Dispose() => _stream.Dispose();
     }
 }

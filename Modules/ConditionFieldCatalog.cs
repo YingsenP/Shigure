@@ -31,7 +31,8 @@ public sealed record ConditionField(
     string DisplayName,
     ConditionFieldType Type,
     ConditionFieldCategory Category = ConditionFieldCategory.State,
-    string? Classification = null)
+    string? Classification = null,
+    long? ItemId = null)
 {
     public override string ToString() => DisplayName;
 }
@@ -143,7 +144,8 @@ public sealed class ConditionFieldCatalog
                     ConditionFieldCategory.State,
                     ReadClassification(field)
                         ?? sourceClassifications.GetValueOrDefault(key)
-                        ?? InferStateClassification(key));
+                        ?? InferStateClassification(key),
+                    ReadItemId(field));
             }
         }
 
@@ -314,11 +316,12 @@ public sealed class ConditionFieldCatalog
         string displayName,
         ConditionFieldType type,
         ConditionFieldCategory category = ConditionFieldCategory.State,
-        string? classification = null)
+        string? classification = null,
+        long? itemId = null)
     {
         if (seen.Add(name))
         {
-            fields.Add(new ConditionField(name, displayName, type, category, classification));
+            fields.Add(new ConditionField(name, displayName, type, category, classification, itemId));
         }
     }
 
@@ -417,6 +420,11 @@ public sealed class ConditionFieldCatalog
 
     private static long? ReadSpellId(JsonObject field)
         => JsonHelpers.GetLong(JsonHelpers.Get(field, "spellId"));
+
+    private static long? ReadItemId(JsonObject field)
+        => JsonHelpers.GetLong(JsonHelpers.Get(field, "itemId")) is > 0 and var itemId
+            ? itemId
+            : null;
 
     private static string InferStateClassification(string name)
     {

@@ -22,6 +22,7 @@ public sealed class StateBuilder : IRuntimeStateBuilder
         var result = new Dictionary<string, object?>();
         healAbsorbData ??= new Dictionary<int, int>();
 
+        var itemIds = new Dictionary<string, long>(StringComparer.Ordinal);
         foreach (var (key, node) in stateConfig)
         {
             if (key is "group" or "spells" or "auras" || node is not JsonObject field || !field.ContainsKey("step"))
@@ -30,6 +31,16 @@ public sealed class StateBuilder : IRuntimeStateBuilder
             }
 
             result[key] = ConvertRawValue(ResolveRaw(field, rowData, barData), JsonHelpers.GetString(JsonHelpers.Get(field, "type")));
+            var itemId = JsonHelpers.GetLong(JsonHelpers.Get(field, "itemId"));
+            if (itemId is > 0)
+            {
+                itemIds[key] = itemId.Value;
+            }
+        }
+
+        if (itemIds.Count > 0)
+        {
+            result["$itemIds"] = itemIds;
         }
 
         if (JsonHelpers.Get(stateConfig, "spells") is JsonObject spellsConfig)
