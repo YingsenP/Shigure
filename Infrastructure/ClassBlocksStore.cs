@@ -215,12 +215,17 @@ internal static class ClassBlocksStore
 
         foreach (var (key, value) in table.Entries)
         {
-            if (key is not long itemId || itemId <= 0 || value is not TableValue item)
+            if (key is not long itemId || itemId <= 0)
             {
                 continue;
             }
 
-            var name = item.GetString("name")?.Trim();
+            var name = value switch
+            {
+                StringValue text => text.Value.Trim(),
+                TableValue item => item.GetString("name")?.Trim(),
+                _ => null
+            };
             if (string.IsNullOrWhiteSpace(name))
             {
                 continue;
@@ -409,12 +414,6 @@ internal static class ClassBlocksStore
         IReadOnlySet<long> deletedOriginalIds)
     {
         var newline = source.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
-        var newEntries = entries.Where(entry => entry.OriginalItemId == 0).ToArray();
-        var changedEntries = entries
-            .Where(entry => entry.OriginalItemId != 0
-                && (entry.ItemId != entry.OriginalItemId
-                    || !string.Equals(entry.Name, entry.OriginalName, StringComparison.Ordinal)))
-            .ToDictionary(entry => entry.OriginalItemId);
         if (!TryExtractAssignedTable(source, ItemsListAssignmentName, out _, out var tableStart, out var tableEnd))
         {
             if (!TryExtractAssignedTable(source, SpellsListAssignmentName, out _, out _, out var spellsEnd))
@@ -426,113 +425,50 @@ internal static class ClassBlocksStore
             return source[..spellsEnd]
                 + newline
                 + newline
-                + SerializeItemsListTable(entries, newline)
+                + SerializeItemsListAssignment(entries, newline)
                 + source[spellsEnd..];
         }
 
-        if (changedEntries.Count == 0 && newEntries.Length == 0 && deletedOriginalIds.Count == 0)
+        var newEntries = entries.Where(entry => entry.OriginalItemId == 0).ToArray();
+        var changedEntries = entries
+            .Where(entry => entry.OriginalItemId != 0
+                && (entry.ItemId != entry.OriginalItemId
+                    || !string.Equals(entry.Name, entry.OriginalName, StringComparison.Ordinal)))
+            .ToDictionary(entry => entry.OriginalItemId);
+        var tableText = source[tableStart..tableEnd];
+        var usesLegacyObjectEntries = tableText.Contains("name =", StringComparison.Ordinal);
+        if (changedEntries.Count == 0
+            && newEntries.Length == 0
+            && deletedOriginalIds.Count == 0
+            && !usesLegacyObjectEntries)
         {
             return source;
         }
 
-        var tableText = source[tableStart..tableEnd];
-        var updatedOriginalIds = new HashSet<long>();
-        var deletedIdsFound = new HashSet<long>();
-        var pattern = new Regex(
-            """^(?<prefix>[ \t]*\[[ \t]*)(?<itemId>\d+)(?<beforeName>[ \t]*\][ \t]*=[ \t]*\{[ \t]*name[ \t]*=[ \t]*)(?<name>"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')(?<suffix>[^\r\n]*)(?<lineEnd>\r?\n|$)""",
-            RegexOptions.Multiline | RegexOptions.CultureInvariant);
-        var updatedTable = pattern.Replace(tableText, match =>
-        {
-            if (!long.TryParse(match.Groups["itemId"].Value, NumberStyles.None,
-                    CultureInfo.InvariantCulture, out var originalItemId))
-            {
-                return match.Value;
-            }
-
-            if (deletedOriginalIds.Contains(originalItemId))
-            {
-                deletedIdsFound.Add(originalItemId);
-                return string.Empty;
-            }
-
-            if (!changedEntries.TryGetValue(originalItemId, out var entry))
-            {
-                updatedOriginalIds.Add(originalItemId);
-                return match.Value;
-            }
-
-            updatedOriginalIds.Add(originalItemId);
-            var quotedName = match.Groups["name"].Value;
-            var quote = quotedName[0];
-            return match.Groups["prefix"].Value
-                + entry.ItemId.ToString(CultureInfo.InvariantCulture)
-                + match.Groups["beforeName"].Value
-                + quote
-                + EscapeLuaString(entry.Name, quote)
-                + quote
-                + match.Groups["suffix"].Value
-                + match.Groups["lineEnd"].Value;
-        });
-
-        var missing = changedEntries.Keys.Where(id => !updatedOriginalIds.Contains(id)).ToArray();
-        if (missing.Length > 0)
-        {
-            throw new InvalidOperationException(
-                $"无法在 {ItemsListAssignmentName} 中定位 itemId {string.Join(", ", missing)} 的原始条目。");
-        }
-
-        var missingDeleted = deletedOriginalIds.Where(id => !deletedIdsFound.Contains(id)).ToArray();
-        if (missingDeleted.Length > 0)
-        {
-            throw new InvalidOperationException(
-                $"无法在 {ItemsListAssignmentName} 中定位待删除的 itemId {string.Join(", ", missingDeleted)}。");
-        }
-
-        if (newEntries.Length > 0)
-        {
-            var closingBraceIndex = updatedTable.Length - 1;
-            var closingLineBreak = updatedTable.LastIndexOf('\n', Math.Max(0, closingBraceIndex - 1));
-            var insertionIndex = closingLineBreak >= 0 ? closingLineBreak + 1 : closingBraceIndex;
-            var insertion = new StringBuilder();
-            if (closingLineBreak < 0)
-            {
-                insertion.Append(newline);
-            }
-
-            foreach (var entry in newEntries.OrderBy(entry => entry.ItemId))
-            {
-                insertion.Append("    [")
-                    .Append(entry.ItemId.ToString(CultureInfo.InvariantCulture))
-                    .Append("] = { name = \"")
-                    .Append(EscapeLuaString(entry.Name, '"'))
-                    .Append("\" },")
-                    .Append(newline);
-            }
-
-            updatedTable = updatedTable.Insert(insertionIndex, insertion.ToString());
-        }
-
-        return source[..tableStart] + updatedTable + source[tableEnd..];
+        return source[..tableStart]
+            + SerializeItemsListTableLiteral(entries, newline)
+            + source[tableEnd..];
     }
 
-    private static string SerializeItemsListTable(IReadOnlyList<ItemsListEntry> entries, string newline)
+    private static string SerializeItemsListAssignment(IReadOnlyList<ItemsListEntry> entries, string newline)
+        => ItemsListAssignmentName + " = " + SerializeItemsListTableLiteral(entries, newline);
+
+    private static string SerializeItemsListTableLiteral(IReadOnlyList<ItemsListEntry> entries, string newline)
     {
-        var builder = new StringBuilder();
-        builder.Append(ItemsListAssignmentName).Append(" = {");
         if (entries.Count == 0)
         {
-            builder.Append('}');
-            return builder.ToString();
+            return "{}";
         }
 
-        builder.Append(newline);
+        var builder = new StringBuilder();
+        builder.Append('{').Append(newline);
         foreach (var entry in entries.OrderBy(item => item.ItemId))
         {
             builder.Append("    [")
                 .Append(entry.ItemId.ToString(CultureInfo.InvariantCulture))
-                .Append("] = { name = \"")
+                .Append("] = \"")
                 .Append(EscapeLuaString(entry.Name, '"'))
-                .Append("\" },")
+                .Append("\",")
                 .Append(newline);
         }
 

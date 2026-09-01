@@ -371,9 +371,9 @@ public sealed class ClassConfigEditorControl : UserControl
             BuildStatesPage(),
             BuildAurasPage(),
             BuildSpellsPage(),
-            BuildItemsPage(),
             BuildGroupPage(),
-            BuildSpellsListPage()
+            BuildSpellsListPage(),
+            BuildItemsPage()
         };
         foreach (var page in pages)
         {
@@ -400,7 +400,7 @@ public sealed class ClassConfigEditorControl : UserControl
                 WriteBackItems();
             }
 
-            if (!_suppressUi && _editorTabIndex == 3)
+            if (!_suppressUi && _editorTabIndex == 5)
             {
                 _itemsListGrid.EndEdit();
                 WriteBackItemsList();
@@ -419,7 +419,7 @@ public sealed class ClassConfigEditorControl : UserControl
             }
         }
 
-        var titles = new[] { "状态", "光环", "冷却", "物品列表", "队伍", "技能列表" };
+        var titles = new[] { "状态", "光环", "冷却", "队伍", "技能列表", "物品列表" };
         for (var i = 0; i < titles.Length; i++)
         {
             var index = i;
@@ -2451,17 +2451,6 @@ public sealed class ClassConfigEditorControl : UserControl
             return;
         }
 
-        if (_currentDocument.ItemsList.Any(item =>
-                string.Equals(item.Name, suggestion.Name, StringComparison.Ordinal)))
-        {
-            MessageBox.Show(
-                $"已有同名物品“{suggestion.Name}”。",
-                "物品列表",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
-            return;
-        }
-
         var entry = new ClassBlocksStore.ItemsListEntry
         {
             ItemId = suggestion.ItemId,
@@ -3517,7 +3506,6 @@ public sealed class ClassConfigEditorControl : UserControl
         }
 
         var itemIds = new HashSet<long>();
-        var itemNames = new HashSet<string>(StringComparer.Ordinal);
         foreach (DataGridViewRow row in _itemsListGrid.Rows)
         {
             if (row.IsNewRow)
@@ -3544,12 +3532,6 @@ public sealed class ClassConfigEditorControl : UserControl
             if (!itemIds.Add(itemId))
             {
                 error = $"物品列表 itemId {itemId} 重复。";
-                return false;
-            }
-
-            if (!itemNames.Add(name))
-            {
-                error = $"物品列表名称“{name}”重复。";
                 return false;
             }
         }
