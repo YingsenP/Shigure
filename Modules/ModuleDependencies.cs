@@ -160,6 +160,8 @@ public sealed class ModuleMacrosSnapshot
 public sealed class ModuleMacroEntrySnapshot
 {
     public string Text { get; set; } = string.Empty;
+
+    // 对特殊宏表示必须手工维护的技能名，并以 Lua 行尾注释持久化。
     public string? Comment { get; set; }
 
     public ModuleMacroEntrySnapshot Clone() => (ModuleMacroEntrySnapshot)MemberwiseClone();

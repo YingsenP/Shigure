@@ -54,6 +54,10 @@ internal static class ClassMacrosStore
     public sealed class ArrayEntry
     {
         public string Text { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Lua 同行注释。静态宏沿用注释/技能名覆盖语义；特殊宏专门用它保存手工技能名。
+        /// </summary>
         public string? Comment { get; set; }
     }
 

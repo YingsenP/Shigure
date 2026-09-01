@@ -1094,8 +1094,8 @@ internal sealed class ModuleDependencyService
         public bool HasConfigChanges => ConfigAdded > 0 || ConfigUpdated > 0;
     }
 
-    // 静态宏和特殊宏可以解析成相同的目标/技能/条件，但仍是两个独立槽位。
-    // 例如“恶魔变形”和“/castsequence reset=0.5 恶魔变形,x”必须分别去重。
+    // 静态宏按解析出的目标/技能/条件去重；特殊宏只按手工技能名去重，
+    // 但两类宏仍是两个独立槽位。
     private readonly record struct MacroIdentity(bool IsSpecial, int Unit, string Spell, string Condition);
 }
 
