@@ -505,6 +505,7 @@ end
 
 function Fuyutsui:OnUpdate(elapsed)
     RunUpdateSafely(self, "RefreshNextGroupMemberState")
+    RunUpdateSafely(self, "UpdateStateBlock", "状态", "公共冷却")
 
     self.timeElapsed = self.timeElapsed + elapsed
     if self.timeElapsed > 0.2 then
@@ -527,8 +528,7 @@ function Fuyutsui:OnUpdate(elapsed)
         self.timeElapsed1 = 0
     end
 
-    RunUpdateSafely(self, "RefreshPlayerCastStateBlocks")
-    RunUpdateSafely(self, "UpdateStateBlock", "状态", "公共冷却")
+    RunUpdateSafely(self, "RefreshPlayerCastStateBlocks")   
     RunUpdateSafely(self, "RefreshUnitCastStateBlocks", "target")
     RunUpdateSafely(self, "RefreshUnitCastStateBlocks", "focus")
     RunUpdateSafely(self, "RefreshUnitCastStateBlocks", "mouseover")

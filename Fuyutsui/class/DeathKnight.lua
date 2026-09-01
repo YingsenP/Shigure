@@ -397,3 +397,5 @@ Fuyutsui.spellsList = {
     [357214]  = { index = 254, name = "翼击" },
     [436344]  = { index = 255, name = "艾泽里特涌动" },
 }
+
+Fuyutsui.itemsList = {}
