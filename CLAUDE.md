@@ -84,8 +84,11 @@ wow_process.txt 目标游戏进程名列表；构建时复制，运行期间每�
 [Infrastructure/ClassBlocksStore.cs](Infrastructure/ClassBlocksStore.cs) 读写 `class/*.lua` 中的 `Fuyutsui.ClassBlocks` 表。每个职业一个 Lua 文件，按专精 ID 分块，包含：
 - **States**（状态字段）：分平面列表或按 `"状态"/"目标"/"焦点"` 分类（现代格式）
 - **Auras**（光环）：5 桶——玩家/目标有害/目标有益/焦点有害/焦点有益
-- **Spells**（法术）：ID、名称、充能、施法计数、强制已知、法术书
+- **Spells**（技能冷却）：ID、名称、充能、施法计数、强制已知、法术书
+- **Items**（物品冷却）：专精级 `[itemId] = { name, isEquipped }`
 - **Group**（队伍）：人数/生命百分比/角色/驱散 + 队伍光环列表
+
+同文件另有职业级 `Fuyutsui.spellsList` 与 `Fuyutsui.itemsList`（`[itemId] = { name }`），与专精冷却表分开。
 
 字段名从 [Infrastructure/ClassStateCatalog.cs](Infrastructure/ClassStateCatalog.cs) 的静态目录验证，不允许自由输入。
 
@@ -99,7 +102,7 @@ wow_process.txt 目标游戏进程名列表；构建时复制，运行期间每�
 
 ### UI 编辑器
 
-- [UI/ClassConfigEditorControl.cs](UI/ClassConfigEditorControl.cs)：左侧职业列表 + 右侧按专精切换的六页编辑器（状态/光环/法术/物品/队伍/技能列表），状态字段用 `ClassStateCatalog` 驱动的 `ComboBoxColumn`。
+- [UI/ClassConfigEditorControl.cs](UI/ClassConfigEditorControl.cs)：左侧职业列表 + 右侧按专精切换的六页编辑器（状态/光环/冷却/物品列表/队伍/技能列表），状态字段用 `ClassStateCatalog` 驱动的 `ComboBoxColumn`。
 - [UI/ClassMacrosEditorControl.cs](UI/ClassMacrosEditorControl.cs)：左侧职业列表 + 右侧三页编辑器（动态宏/静态宏/特殊宏），偏移提示显示槽位编号计算。
 - 两个编辑器均接受 `Func<string?>` 项目路径解析器 + `Func<string, Task<string?>>` 保存回调，由 `MainForm` 在构造时注入。保存流程：编辑器调 `Store.Save()` → 传入已保存文件路径 → 重新生成 config/keymap → 单文件部署游戏 → 重启运行时；部署失败返回说明，但不回滚本地文件。
 - 配置更新的多个入口通过任务尾队列串行执行；运行时重启会等待该队列稳定，主窗口关闭也会等待正在写盘的转换和部署完成。新增同步入口必须继续走这条队列。

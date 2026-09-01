@@ -7,12 +7,13 @@ namespace Shigure;
 
 /// <summary>
 /// 读写 Fuyutsui class/*.lua 中的 ClassBlocks（states/auras/spells/items/group），
-/// 同时读写 spellsList；保存时替换 ClassBlocks 表字面量，并原位更新 spellsList 中已编辑的条目。
+/// 同时读写 spellsList 与 itemsList；保存时替换 ClassBlocks 表字面量，并原位更新列表条目。
 /// </summary>
 internal static class ClassBlocksStore
 {
     public const string AssignmentName = "Fuyutsui.ClassBlocks";
     public const string SpellsListAssignmentName = "Fuyutsui.spellsList";
+    public const string ItemsListAssignmentName = "Fuyutsui.itemsList";
     private static readonly string[] StateCategories =
     [
         ClassStateCatalog.CategoryState,
@@ -38,6 +39,8 @@ internal static class ClassBlocksStore
         public Dictionary<int, SpecBlocks> Specs { get; set; } = new();
         public List<SpellsListEntry> SpellsList { get; set; } = new();
         public HashSet<long> DeletedSpellsListOriginalIds { get; } = new();
+        public List<ItemsListEntry> ItemsList { get; set; } = new();
+        public HashSet<long> DeletedItemsListOriginalIds { get; } = new();
         public bool IsModernFormat { get; set; }
     }
 
@@ -48,6 +51,14 @@ internal static class ClassBlocksStore
         public string Name { get; set; } = string.Empty;
         public long OriginalSpellId { get; set; }
         public int OriginalIndex { get; set; }
+        public string OriginalName { get; set; } = string.Empty;
+    }
+
+    public sealed class ItemsListEntry
+    {
+        public long ItemId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public long OriginalItemId { get; set; }
         public string OriginalName { get; set; } = string.Empty;
     }
 
@@ -140,6 +151,7 @@ internal static class ClassBlocksStore
         }
 
         var spellsList = ParseSpellsList(ExtractAssignedTable(source, SpellsListAssignmentName));
+        var itemsList = ParseItemsList(ExtractAssignedTable(source, ItemsListAssignmentName));
         return new ClassFileDocument
         {
             FilePath = filePath,
@@ -148,6 +160,7 @@ internal static class ClassBlocksStore
             TableEndExclusive = end,
             Specs = specs,
             SpellsList = spellsList,
+            ItemsList = itemsList,
             IsModernFormat = modern
         };
     }
@@ -192,6 +205,39 @@ internal static class ClassBlocksStore
         return result;
     }
 
+    private static List<ItemsListEntry> ParseItemsList(TableValue? table)
+    {
+        var result = new List<ItemsListEntry>();
+        if (table is null)
+        {
+            return result;
+        }
+
+        foreach (var (key, value) in table.Entries)
+        {
+            if (key is not long itemId || itemId <= 0 || value is not TableValue item)
+            {
+                continue;
+            }
+
+            var name = item.GetString("name")?.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                continue;
+            }
+
+            result.Add(new ItemsListEntry
+            {
+                ItemId = itemId,
+                Name = name,
+                OriginalItemId = itemId,
+                OriginalName = name
+            });
+        }
+
+        return result;
+    }
+
     public static void Save(ClassFileDocument document)
     {
         if (!document.IsModernFormat)
@@ -203,6 +249,10 @@ internal static class ClassBlocksStore
             document.SourceText,
             document.SpellsList,
             document.DeletedSpellsListOriginalIds);
+        updated = UpdateItemsListEntries(
+            updated,
+            document.ItemsList,
+            document.DeletedItemsListOriginalIds);
         if (!TryExtractAssignedTable(updated, AssignmentName, out _, out var classBlocksStart, out var classBlocksEnd))
         {
             throw new InvalidOperationException("保存前无法重新定位 ClassBlocks 表。");
@@ -230,6 +280,13 @@ internal static class ClassBlocksStore
         }
 
         document.DeletedSpellsListOriginalIds.Clear();
+        foreach (var item in document.ItemsList)
+        {
+            item.OriginalItemId = item.ItemId;
+            item.OriginalName = item.Name;
+        }
+
+        document.DeletedItemsListOriginalIds.Clear();
     }
 
     public sealed class ItemEntry
@@ -344,6 +401,143 @@ internal static class ClassBlocksStore
         }
 
         return source[..tableStart] + updatedTable + source[tableEnd..];
+    }
+
+    private static string UpdateItemsListEntries(
+        string source,
+        IReadOnlyList<ItemsListEntry> entries,
+        IReadOnlySet<long> deletedOriginalIds)
+    {
+        var newline = source.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+        var newEntries = entries.Where(entry => entry.OriginalItemId == 0).ToArray();
+        var changedEntries = entries
+            .Where(entry => entry.OriginalItemId != 0
+                && (entry.ItemId != entry.OriginalItemId
+                    || !string.Equals(entry.Name, entry.OriginalName, StringComparison.Ordinal)))
+            .ToDictionary(entry => entry.OriginalItemId);
+        if (!TryExtractAssignedTable(source, ItemsListAssignmentName, out _, out var tableStart, out var tableEnd))
+        {
+            if (!TryExtractAssignedTable(source, SpellsListAssignmentName, out _, out _, out var spellsEnd))
+            {
+                throw new InvalidOperationException(
+                    $"当前文件中未找到 {SpellsListAssignmentName}，无法写入物品列表。");
+            }
+
+            return source[..spellsEnd]
+                + newline
+                + newline
+                + SerializeItemsListTable(entries, newline)
+                + source[spellsEnd..];
+        }
+
+        if (changedEntries.Count == 0 && newEntries.Length == 0 && deletedOriginalIds.Count == 0)
+        {
+            return source;
+        }
+
+        var tableText = source[tableStart..tableEnd];
+        var updatedOriginalIds = new HashSet<long>();
+        var deletedIdsFound = new HashSet<long>();
+        var pattern = new Regex(
+            """^(?<prefix>[ \t]*\[[ \t]*)(?<itemId>\d+)(?<beforeName>[ \t]*\][ \t]*=[ \t]*\{[ \t]*name[ \t]*=[ \t]*)(?<name>"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')(?<suffix>[^\r\n]*)(?<lineEnd>\r?\n|$)""",
+            RegexOptions.Multiline | RegexOptions.CultureInvariant);
+        var updatedTable = pattern.Replace(tableText, match =>
+        {
+            if (!long.TryParse(match.Groups["itemId"].Value, NumberStyles.None,
+                    CultureInfo.InvariantCulture, out var originalItemId))
+            {
+                return match.Value;
+            }
+
+            if (deletedOriginalIds.Contains(originalItemId))
+            {
+                deletedIdsFound.Add(originalItemId);
+                return string.Empty;
+            }
+
+            if (!changedEntries.TryGetValue(originalItemId, out var entry))
+            {
+                updatedOriginalIds.Add(originalItemId);
+                return match.Value;
+            }
+
+            updatedOriginalIds.Add(originalItemId);
+            var quotedName = match.Groups["name"].Value;
+            var quote = quotedName[0];
+            return match.Groups["prefix"].Value
+                + entry.ItemId.ToString(CultureInfo.InvariantCulture)
+                + match.Groups["beforeName"].Value
+                + quote
+                + EscapeLuaString(entry.Name, quote)
+                + quote
+                + match.Groups["suffix"].Value
+                + match.Groups["lineEnd"].Value;
+        });
+
+        var missing = changedEntries.Keys.Where(id => !updatedOriginalIds.Contains(id)).ToArray();
+        if (missing.Length > 0)
+        {
+            throw new InvalidOperationException(
+                $"无法在 {ItemsListAssignmentName} 中定位 itemId {string.Join(", ", missing)} 的原始条目。");
+        }
+
+        var missingDeleted = deletedOriginalIds.Where(id => !deletedIdsFound.Contains(id)).ToArray();
+        if (missingDeleted.Length > 0)
+        {
+            throw new InvalidOperationException(
+                $"无法在 {ItemsListAssignmentName} 中定位待删除的 itemId {string.Join(", ", missingDeleted)}。");
+        }
+
+        if (newEntries.Length > 0)
+        {
+            var closingBraceIndex = updatedTable.Length - 1;
+            var closingLineBreak = updatedTable.LastIndexOf('\n', Math.Max(0, closingBraceIndex - 1));
+            var insertionIndex = closingLineBreak >= 0 ? closingLineBreak + 1 : closingBraceIndex;
+            var insertion = new StringBuilder();
+            if (closingLineBreak < 0)
+            {
+                insertion.Append(newline);
+            }
+
+            foreach (var entry in newEntries.OrderBy(entry => entry.ItemId))
+            {
+                insertion.Append("    [")
+                    .Append(entry.ItemId.ToString(CultureInfo.InvariantCulture))
+                    .Append("] = { name = \"")
+                    .Append(EscapeLuaString(entry.Name, '"'))
+                    .Append("\" },")
+                    .Append(newline);
+            }
+
+            updatedTable = updatedTable.Insert(insertionIndex, insertion.ToString());
+        }
+
+        return source[..tableStart] + updatedTable + source[tableEnd..];
+    }
+
+    private static string SerializeItemsListTable(IReadOnlyList<ItemsListEntry> entries, string newline)
+    {
+        var builder = new StringBuilder();
+        builder.Append(ItemsListAssignmentName).Append(" = {");
+        if (entries.Count == 0)
+        {
+            builder.Append('}');
+            return builder.ToString();
+        }
+
+        builder.Append(newline);
+        foreach (var entry in entries.OrderBy(item => item.ItemId))
+        {
+            builder.Append("    [")
+                .Append(entry.ItemId.ToString(CultureInfo.InvariantCulture))
+                .Append("] = { name = \"")
+                .Append(EscapeLuaString(entry.Name, '"'))
+                .Append("\" },")
+                .Append(newline);
+        }
+
+        builder.Append('}');
+        return builder.ToString();
     }
 
     private static string EscapeLuaString(string value, char quote)
