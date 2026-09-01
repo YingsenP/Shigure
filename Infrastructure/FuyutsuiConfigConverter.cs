@@ -30,7 +30,6 @@ internal static class FuyutsuiConfigConverter
     [
         ClassStateCatalog.CategoryState,
         ClassStateCatalog.CategoryResource,
-        ClassStateCatalog.CategoryItem,
         ClassStateCatalog.CategoryConfig,
         ClassStateCatalog.CategoryTarget,
         ClassStateCatalog.CategoryFocus,
@@ -79,6 +78,7 @@ internal static class FuyutsuiConfigConverter
             var classBlocks = ExtractAssignedTable(lua, "Fuyutsui.ClassBlocks")
                 ?? throw new InvalidDataException($"{fileName}.lua 中未找到 Fuyutsui.ClassBlocks");
             var spellsList = ExtractAssignedTable(lua, "Fuyutsui.spellsList");
+            var itemsList = ExtractAssignedTable(lua, "Fuyutsui.itemsList");
 
             var root = new JsonObject();
             PreserveMeta(existing, root);
@@ -90,6 +90,15 @@ internal static class FuyutsuiConfigConverter
             else
             {
                 CompileSpellMaps(spellsList, root, warnings, fileName);
+            }
+
+            if (itemsList is null)
+            {
+                warnings.Add($"{fileName}: 未找到 Fuyutsui.itemsList，已保留现有一键物品");
+            }
+            else
+            {
+                CompileItemMaps(itemsList, root, warnings, fileName);
             }
 
             for (var specId = 1; specId <= 4; specId++)
@@ -151,7 +160,7 @@ internal static class FuyutsuiConfigConverter
 
     private static void PreserveMeta(JsonObject existing, JsonObject target)
     {
-        foreach (var key in new[] { "keymap", "一键法术" })
+        foreach (var key in new[] { "keymap", "一键法术", ModuleSpecialActions.OneKeyItem })
         {
             if (existing[key] is { } node)
             {
@@ -203,6 +212,49 @@ internal static class FuyutsuiConfigConverter
         target[ModuleSpecialActions.OneKeySpell] = ToSpellMap(oneKeySpells);
     }
 
+    private static void CompileItemMaps(
+        TableValue itemsList,
+        JsonObject target,
+        List<string> warnings,
+        string label)
+    {
+        var oneKeyItems = new SortedDictionary<int, long>();
+
+        foreach (var (key, value) in itemsList.Entries)
+        {
+            if (value is not TableValue item)
+            {
+                continue;
+            }
+
+            var indexValue = item.GetNumber("index");
+            var itemIdValue = key switch
+            {
+                long number => (double)number,
+                int number => number,
+                double number => number,
+                NumberValue number => (double)number.AsInt(),
+                _ => item.GetNumber("itemId")
+            };
+            if (indexValue is null
+                || indexValue.Value <= 0
+                || indexValue.Value > int.MaxValue
+                || indexValue.Value != Math.Truncate(indexValue.Value)
+                || itemIdValue is null
+                || itemIdValue.Value <= 0
+                || itemIdValue.Value != Math.Truncate(itemIdValue.Value))
+            {
+                warnings.Add($"{label}: itemsList 条目缺少有效 index/itemId，已跳过");
+                continue;
+            }
+
+            var index = (int)indexValue.Value;
+            AddSpellMapEntry(oneKeyItems, index, (long)itemIdValue.Value, ModuleSpecialActions.OneKeyItem, warnings, label);
+        }
+
+        target[ModuleSpecialActions.OneKeyItem] = ToSpellMap(oneKeyItems);
+    }
+
     private static void AddSpellMapEntry(
         IDictionary<int, long> target,
         int index,
@@ -220,7 +272,7 @@ internal static class FuyutsuiConfigConverter
         if (existingName != spellId)
         {
             warnings.Add(
-                $"{label}: {mapName} index {index} 同时对应 spellId {existingName} 和 {spellId}，已保留前者");
+                $"{label}: {mapName} index {index} 同时对应 id {existingName} 和 {spellId}，已保留前者");
         }
     }
 
@@ -252,27 +304,6 @@ internal static class FuyutsuiConfigConverter
                 {
                     if (states.GetTable(category) is not { } list)
                     {
-                        continue;
-                    }
-
-                    if (string.Equals(category, ClassStateCatalog.CategoryItem, StringComparison.Ordinal))
-                    {
-                        foreach (var item in ReadItems(list, warnings, label))
-                        {
-                            if (result.ContainsKey(item.Name))
-                            {
-                                warnings.Add($"{label}: 物品名称“{item.Name}”与已有状态字段重复，已跳过该物品字段");
-                            }
-                            else
-                            {
-                                var field = Field(index, "int", category);
-                                field["itemId"] = item.ItemId;
-                                result[item.Name] = field;
-                            }
-
-                            index++;
-                        }
-
                         continue;
                     }
 
@@ -432,6 +463,25 @@ internal static class FuyutsuiConfigConverter
             }
         }
 
+        if (spec.GetTable("items") is { } items)
+        {
+            foreach (var item in ReadItems(items, warnings, label))
+            {
+                if (result.ContainsKey(item.Name))
+                {
+                    warnings.Add($"{label}: 物品名称“{item.Name}”与已有状态字段重复，已跳过该物品字段");
+                }
+                else
+                {
+                    var field = Field(index, "int", ClassStateCatalog.CategoryItem);
+                    field["itemId"] = item.ItemId;
+                    field["isEquipped"] = item.IsEquipped;
+                    result[item.Name] = field;
+                    index++;
+                }
+            }
+        }
+
         if (aurasObject.Count > 0)
         {
             result["auras"] = aurasObject;
@@ -504,45 +554,35 @@ internal static class FuyutsuiConfigConverter
         return (result, warnings);
     }
 
-    private static List<(long ItemId, string Name)> ReadItems(
+    private static List<(long ItemId, string Name, bool IsEquipped)> ReadItems(
         TableValue list,
         List<string> warnings,
         string label)
     {
-        var result = new List<(long ItemId, string Name)>();
+        var result = new List<(long ItemId, string Name, bool IsEquipped)>();
         var seenIds = new HashSet<long>();
-        var arrayValues = list.IPairs().ToList();
-        foreach (var item in arrayValues)
-        {
-            if (item is not StringValue nameValue || string.IsNullOrWhiteSpace(nameValue.Value))
-            {
-                continue;
-            }
-
-            var name = nameValue.Value.Trim();
-            if (!ClassStateCatalog.TryGetLegacyItemId(name, out var itemId))
-            {
-                warnings.Add($"{label}: 旧物品“{name}”缺少 itemId，已跳过");
-                continue;
-            }
-
-            if (seenIds.Add(itemId))
-            {
-                result.Add((itemId, name));
-            }
-        }
-
-        var arrayCount = arrayValues.Count;
         foreach (var (key, value) in list.Entries)
         {
-            if (key is not long itemId || itemId <= arrayCount
-                || value is not StringValue nameValue || string.IsNullOrWhiteSpace(nameValue.Value)
+            if (key is not long itemId
+                || itemId <= 0
+                || value is not TableValue itemTable
                 || !seenIds.Add(itemId))
             {
                 continue;
             }
 
-            result.Add((itemId, nameValue.Value.Trim()));
+            var name = itemTable.GetString("name")?.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                seenIds.Remove(itemId);
+                warnings.Add($"{label}: itemId {itemId} 缺少名称，已跳过");
+                continue;
+            }
+
+            result.Add((
+                itemId,
+                name,
+                itemTable.GetBool("isEquipped") == true));
         }
 
         result.Sort((left, right) => left.ItemId.CompareTo(right.ItemId));

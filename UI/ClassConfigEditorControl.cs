@@ -9,8 +9,8 @@ public sealed record ClassConfigPostSaveResult(
     IReadOnlyList<string> ModuleWarnings);
 
 /// <summary>
-/// 图形化编辑 Fuyutsui class/*.lua 的 ClassBlocks（states / auras / spells / group），
-/// 并编辑同文件中的 spellsList。
+/// 图形化编辑 Fuyutsui class/*.lua 的 ClassBlocks（states / auras / spells / items / group），
+/// 并编辑同文件中的 spellsList 与 itemsList。
 /// </summary>
 public sealed class ClassConfigEditorControl : UserControl
 {
@@ -27,12 +27,24 @@ public sealed class ClassConfigEditorControl : UserControl
 
     private readonly DataGridView _statesGrid = new();
     private readonly DataGridViewComboBoxColumn _stateNameColumn = new();
-    private readonly DataGridViewTextBoxColumn _itemIdColumn = new();
-    private readonly DataGridViewTextBoxColumn _itemNameColumn = new();
-    private Control _stateMoveBar = null!;
     private ToolStripDropDown? _stateComboDropDown;
     private readonly DataGridView _aurasGrid = new();
     private readonly DataGridView _spellsGrid = new();
+    private readonly TextBox _spellsSearchBox = new();
+    private readonly DataGridView _itemsGrid = new();
+    private readonly TextBox _itemsSearchBox = new();
+    private readonly DataGridView _itemsListGrid = new();
+    private readonly TextBox _itemsListSearchBox = new();
+    private readonly DataGridView _itemDatabaseGrid = new();
+    private readonly TextBox _itemDatabaseFilterBox = new();
+    private readonly Label _itemDatabaseStatusLabel = new();
+    private readonly System.Windows.Forms.Timer _itemDatabaseFilterTimer = new() { Interval = 150 };
+    private const int ItemDatabasePageSize = 20;
+    private ItemDatabaseResultSet _itemDatabaseResults = ItemDatabaseResultSet.Empty;
+    private int _itemDatabaseVisibleCount;
+    private bool _expandingItemDatabaseRows;
+    private CancellationTokenSource? _itemDatabaseFilterCancellation;
+    private int _itemDatabaseFilterVersion;
     private readonly DataGridView _spellsListGrid = new();
     private readonly TextBox _spellsListSearchBox = new();
     private readonly DataGridView _spellDatabaseGrid = new();
@@ -63,6 +75,7 @@ public sealed class ClassConfigEditorControl : UserControl
     private int? _currentSpecId;
     private bool _suppressUi;
     private bool _dirty;
+    private int _editorTabIndex = -1;
 
     internal event Action<bool>? DirtyStateChanged;
     internal bool HasUnsavedChanges => _dirty;
@@ -102,6 +115,9 @@ public sealed class ClassConfigEditorControl : UserControl
             _spellDatabaseFilterTimer.Stop();
             _spellDatabaseFilterTimer.Dispose();
             _spellDatabaseFilterCancellation?.Cancel();
+            _itemDatabaseFilterTimer.Stop();
+            _itemDatabaseFilterTimer.Dispose();
+            _itemDatabaseFilterCancellation?.Cancel();
             SpellIconCatalog.CatalogChanged -= OnSpellIconCatalogChanged;
         }
 
@@ -321,14 +337,14 @@ public sealed class ClassConfigEditorControl : UserControl
         {
             Dock = DockStyle.Fill,
             BackColor = UiTheme.Surface,
-            ColumnCount = 5,
+            ColumnCount = 6,
             RowCount = 1,
             Margin = new Padding(0, 0, 0, 8),
             Padding = new Padding(0)
         };
-        for (var i = 0; i < 5; i++)
+        for (var i = 0; i < 6; i++)
         {
-            tabBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
+            tabBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F / 6));
         }
 
         var contentCard = new UiCardPanel
@@ -357,7 +373,8 @@ public sealed class ClassConfigEditorControl : UserControl
             BuildAurasPage(),
             BuildSpellsPage(),
             BuildGroupPage(),
-            BuildSpellsListPage()
+            BuildSpellsListPage(),
+            BuildItemsPage()
         };
         foreach (var page in pages)
         {
@@ -368,16 +385,29 @@ public sealed class ClassConfigEditorControl : UserControl
             contentHost.Controls.Add(page);
         }
 
-        var tabs = new UiPillTab[5];
-        var selectedIndex = -1;
+        var tabs = new UiPillTab[6];
         void SelectTab(int index)
         {
-            if (selectedIndex == index)
+            if (_editorTabIndex == index)
             {
                 return;
             }
 
-            selectedIndex = index;
+            if (!_suppressUi && _editorTabIndex == 2)
+            {
+                _spellsGrid.EndEdit();
+                _itemsGrid.EndEdit();
+                WriteBackSpells();
+                WriteBackItems();
+            }
+
+            if (!_suppressUi && _editorTabIndex == 5)
+            {
+                _itemsListGrid.EndEdit();
+                WriteBackItemsList();
+            }
+
+            _editorTabIndex = index;
             for (var i = 0; i < tabs.Length; i++)
             {
                 var selected = i == index;
@@ -390,7 +420,7 @@ public sealed class ClassConfigEditorControl : UserControl
             }
         }
 
-        var titles = new[] { "状态", "光环", "法术", "队伍", "技能列表" };
+        var titles = new[] { "状态", "光环", "冷却", "队伍", "技能列表", "物品列表" };
         for (var i = 0; i < titles.Length; i++)
         {
             var index = i;
@@ -431,16 +461,6 @@ public sealed class ClassConfigEditorControl : UserControl
         _stateNameColumn.FlatStyle = FlatStyle.Flat;
         _stateNameColumn.DisplayStyle = DataGridViewComboBoxDisplayStyle.DropDownButton;
         _statesGrid.Columns.Add(_stateNameColumn);
-        _itemIdColumn.Name = "ItemId";
-        _itemIdColumn.HeaderText = "itemId";
-        _itemIdColumn.Width = 180;
-        _itemIdColumn.Visible = false;
-        _statesGrid.Columns.Add(_itemIdColumn);
-        _itemNameColumn.Name = "ItemName";
-        _itemNameColumn.HeaderText = "名称";
-        _itemNameColumn.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-        _itemNameColumn.Visible = false;
-        _statesGrid.Columns.Add(_itemNameColumn);
         _statesGrid.Columns.Add(CreateDeleteColumn());
         _statesGrid.CellPainting += (_, e) =>
         {
@@ -459,9 +479,252 @@ public sealed class ClassConfigEditorControl : UserControl
         _statesGrid.DataError += (_, e) => e.ThrowException = false;
         _statesGrid.Disposed += (_, _) => CloseStateComboDropDown();
         panel.Controls.Add(_statesGrid, 0, 1);
-        _stateMoveBar = BuildMoveButtons(_statesGrid);
-        panel.Controls.Add(_stateMoveBar, 0, 2);
+        panel.Controls.Add(BuildMoveButtons(_statesGrid), 0, 2);
         return panel;
+    }
+
+    private Control BuildItemsPage()
+    {
+        var split = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            BackColor = UiTheme.SurfaceRaised,
+            Margin = new Padding(0),
+            Padding = new Padding(0)
+        };
+        split.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        split.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        split.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        var leftColumn = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            BackColor = UiTheme.SurfaceRaised,
+            Margin = new Padding(0, 0, 5, 0),
+            Padding = new Padding(0)
+        };
+        leftColumn.RowStyles.Add(new RowStyle(SizeType.Absolute, 68));
+        leftColumn.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        var searchCard = new UiCardPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = new Padding(0, 0, 0, 10),
+            Padding = new Padding(12, 8, 12, 8)
+        };
+        searchCard.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 64));
+        searchCard.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        searchCard.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        searchCard.Controls.Add(new Label
+        {
+            Dock = DockStyle.Fill,
+            Text = "搜索",
+            ForeColor = UiTheme.Text,
+            BackColor = Color.Transparent,
+            Font = new Font(Font.FontFamily, 9F, FontStyle.Bold, GraphicsUnit.Point),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Margin = new Padding(0),
+            Padding = new Padding(8, 0, 0, 0)
+        }, 0, 0);
+
+        UiTheme.StyleTextBox(_itemsListSearchBox);
+        _itemsListSearchBox.Dock = DockStyle.None;
+        _itemsListSearchBox.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+        _itemsListSearchBox.Margin = new Padding(0);
+        _itemsListSearchBox.Height = 30;
+        _itemsListSearchBox.PlaceholderText = "itemId、索引或名称";
+        _itemsListSearchBox.TextChanged += (_, _) => ApplyItemsListFilter();
+        searchCard.Controls.Add(_itemsListSearchBox, 1, 0);
+        leftColumn.Controls.Add(searchCard, 0, 0);
+
+        var currentListCard = new UiCardPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            Margin = new Padding(0),
+            Padding = new Padding(0)
+        };
+        currentListCard.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        currentListCard.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        currentListCard.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        var currentListHeader = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            BackColor = Color.Transparent,
+            Margin = new Padding(0),
+            Padding = new Padding(12, 0, 12, 0)
+        };
+        currentListHeader.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        currentListHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        var currentListTitle = CreateCardTitle("物品列表");
+        currentListTitle.AutoSize = true;
+        currentListTitle.Dock = DockStyle.None;
+        currentListTitle.Anchor = AnchorStyles.Left;
+        currentListHeader.Controls.Add(currentListTitle, 0, 0);
+        var hint = CreateFieldCaption("来自当前职业 Lua 的 Fuyutsui.itemsList。");
+        hint.TextAlign = ContentAlignment.MiddleRight;
+        currentListHeader.Controls.Add(hint, 1, 0);
+        currentListCard.Controls.Add(currentListHeader, 0, 0);
+
+        ConfigureGrid(_itemsListGrid, "class-config-items-list");
+        _itemsListGrid.AllowUserToAddRows = false;
+        _itemsListGrid.CellContentClick += HandleItemsListDeleteClick;
+        _itemsListGrid.CellValueChanged += (_, e) =>
+        {
+            MarkDirty();
+            if (e.RowIndex >= 0 && e.RowIndex < _itemsListGrid.Rows.Count)
+            {
+                UpdateItemGridIcon(_itemsListGrid.Rows[e.RowIndex]);
+            }
+        };
+        _itemsListGrid.DataError += (_, e) => e.ThrowException = false;
+        _itemsListGrid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            Name = "ItemId",
+            HeaderText = "itemId",
+            Width = 125,
+            SortMode = DataGridViewColumnSortMode.NotSortable
+        });
+        _itemsListGrid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            Name = "Index",
+            HeaderText = "索引",
+            Width = 72,
+            SortMode = DataGridViewColumnSortMode.NotSortable
+        });
+        _itemsListGrid.Columns.Add(CreateSpellIconColumn());
+        _itemsListGrid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            Name = "Name",
+            HeaderText = "名称",
+            AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill,
+            SortMode = DataGridViewColumnSortMode.NotSortable
+        });
+        _itemsListGrid.Columns.Add(CreateDeleteColumn());
+        currentListCard.Controls.Add(_itemsListGrid, 0, 1);
+        leftColumn.Controls.Add(currentListCard, 0, 1);
+        split.Controls.Add(leftColumn, 0, 0);
+
+        var rightColumn = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            BackColor = UiTheme.SurfaceRaised,
+            Margin = new Padding(5, 0, 0, 0),
+            Padding = new Padding(0)
+        };
+        rightColumn.RowStyles.Add(new RowStyle(SizeType.Absolute, 68));
+        rightColumn.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        var filterCard = new UiCardPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = new Padding(0, 0, 0, 10),
+            Padding = new Padding(12, 8, 12, 8)
+        };
+        filterCard.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 64));
+        filterCard.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        filterCard.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        filterCard.Controls.Add(CreateCardTitle("筛选", 8), 0, 0);
+        UiTheme.StyleTextBox(_itemDatabaseFilterBox);
+        _itemDatabaseFilterBox.Dock = DockStyle.None;
+        _itemDatabaseFilterBox.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+        _itemDatabaseFilterBox.Margin = new Padding(0);
+        _itemDatabaseFilterBox.Height = 30;
+        _itemDatabaseFilterBox.PlaceholderText = "itemId 或名称";
+        _itemDatabaseFilterBox.TextChanged += (_, _) => ScheduleItemDatabaseFilter();
+        filterCard.Controls.Add(_itemDatabaseFilterBox, 1, 0);
+        rightColumn.Controls.Add(filterCard, 0, 0);
+
+        var databaseListCard = new UiCardPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            Margin = new Padding(0),
+            Padding = new Padding(0)
+        };
+        databaseListCard.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        databaseListCard.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        databaseListCard.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        var databaseHeader = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            BackColor = Color.Transparent,
+            Margin = new Padding(0),
+            Padding = new Padding(12, 0, 12, 0)
+        };
+        databaseHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        databaseHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        databaseHeader.Controls.Add(CreateCardTitle("物品数据库"), 0, 0);
+        _itemDatabaseStatusLabel.Dock = DockStyle.Fill;
+        _itemDatabaseStatusLabel.ForeColor = UiTheme.Muted;
+        _itemDatabaseStatusLabel.BackColor = Color.Transparent;
+        _itemDatabaseStatusLabel.TextAlign = ContentAlignment.MiddleRight;
+        _itemDatabaseStatusLabel.Margin = new Padding(0);
+        databaseHeader.Controls.Add(_itemDatabaseStatusLabel, 1, 0);
+        databaseListCard.Controls.Add(databaseHeader, 0, 0);
+
+        ConfigureGrid(_itemDatabaseGrid, "class-config-item-database");
+        _itemDatabaseGrid.AllowUserToAddRows = false;
+        _itemDatabaseGrid.ReadOnly = true;
+        _itemDatabaseGrid.VirtualMode = true;
+        _itemDatabaseGrid.EditMode = DataGridViewEditMode.EditProgrammatically;
+        _itemDatabaseGrid.RowCount = 0;
+        _itemDatabaseGrid.CellValueNeeded += OnItemDatabaseCellValueNeeded;
+        _itemDatabaseGrid.CellContentClick += OnItemDatabaseCellContentClick;
+        _itemDatabaseGrid.Scroll += OnItemDatabaseScroll;
+        _itemDatabaseGrid.Columns.Add(CreateSpellIconColumn());
+        _itemDatabaseGrid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            Name = "ItemId",
+            HeaderText = "itemId",
+            Width = 125,
+            SortMode = DataGridViewColumnSortMode.NotSortable
+        });
+        _itemDatabaseGrid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            Name = "Name",
+            HeaderText = "名称",
+            AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill,
+            SortMode = DataGridViewColumnSortMode.NotSortable
+        });
+        _itemDatabaseGrid.Columns.Add(new DataGridViewButtonColumn
+        {
+            Name = "Add",
+            HeaderText = "添加",
+            Text = "添加",
+            UseColumnTextForButtonValue = true,
+            Width = 72,
+            SortMode = DataGridViewColumnSortMode.NotSortable
+        });
+        _itemDatabaseGrid.HandleCreated += (_, _) => RefreshItemDatabase();
+        databaseListCard.Controls.Add(_itemDatabaseGrid, 0, 1);
+        rightColumn.Controls.Add(databaseListCard, 0, 1);
+
+        _itemDatabaseFilterTimer.Tick += async (_, _) =>
+        {
+            _itemDatabaseFilterTimer.Stop();
+            await ApplyItemDatabaseFilterAsync();
+        };
+
+        split.Controls.Add(rightColumn, 1, 0);
+        return split;
     }
 
     private Control BuildStateCategoryTabs()
@@ -625,21 +888,97 @@ public sealed class ClassConfigEditorControl : UserControl
 
     private Control BuildSpellsPage()
     {
-        var panel = new TableLayoutPanel
+        var split = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            BackColor = UiTheme.SurfaceRaised,
+            Margin = new Padding(0),
+            Padding = new Padding(0)
+        };
+        split.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        split.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        split.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        var leftColumn = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 3,
-            BackColor = UiTheme.SurfaceRaised
+            BackColor = UiTheme.SurfaceRaised,
+            Margin = new Padding(0, 0, 5, 0),
+            Padding = new Padding(0)
         };
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
-        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+        leftColumn.RowStyles.Add(new RowStyle(SizeType.Absolute, 68));
+        leftColumn.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        leftColumn.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
 
+        var spellSearchCard = new UiCardPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = new Padding(0, 0, 0, 10),
+            Padding = new Padding(12, 8, 12, 8)
+        };
+        spellSearchCard.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 64));
+        spellSearchCard.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        spellSearchCard.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        spellSearchCard.Controls.Add(new Label
+        {
+            Dock = DockStyle.Fill,
+            Text = "搜索",
+            ForeColor = UiTheme.Text,
+            BackColor = Color.Transparent,
+            Font = new Font(Font.FontFamily, 9F, FontStyle.Bold, GraphicsUnit.Point),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Margin = new Padding(0),
+            Padding = new Padding(8, 0, 0, 0)
+        }, 0, 0);
+
+        UiTheme.StyleTextBox(_spellsSearchBox);
+        _spellsSearchBox.Dock = DockStyle.None;
+        _spellsSearchBox.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+        _spellsSearchBox.Margin = new Padding(0);
+        _spellsSearchBox.Height = 30;
+        _spellsSearchBox.PlaceholderText = "spellId 或名称";
+        _spellsSearchBox.TextChanged += (_, _) => ApplySpellsFilter();
+        spellSearchCard.Controls.Add(_spellsSearchBox, 1, 0);
+        leftColumn.Controls.Add(spellSearchCard, 0, 0);
+
+        var spellCard = new UiCardPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            Margin = new Padding(0),
+            Padding = new Padding(0)
+        };
+        spellCard.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        spellCard.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        var spellHeader = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            BackColor = Color.Transparent,
+            Margin = new Padding(0),
+            Padding = new Padding(12, 0, 12, 0)
+        };
+        spellHeader.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        spellHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        var spellTitle = CreateCardTitle("技能冷却");
+        spellTitle.AutoSize = true;
+        spellTitle.Dock = DockStyle.None;
+        spellTitle.Anchor = AnchorStyles.Left;
+        spellHeader.Controls.Add(spellTitle, 0, 0);
         var textureOrderHint = CreateFieldCaption(
-            "纹理按行排列；充能法术连续占 2 格：冷却 → 充能冷却。最大充能、施法次数只生成横向计数条。");
-        textureOrderHint.Padding = new Padding(8, 0, 0, 0);
-        panel.Controls.Add(textureOrderHint, 0, 0);
+            "充能法术连续占 2 格：冷却 → 充能冷却。");
+        textureOrderHint.TextAlign = ContentAlignment.MiddleRight;
+        spellHeader.Controls.Add(textureOrderHint, 1, 0);
+        spellCard.Controls.Add(spellHeader, 0, 0);
 
         ConfigureGrid(_spellsGrid, "class-config-spells");
         _spellsGrid.Columns.Add(CreateSpellIconColumn());
@@ -662,9 +1001,122 @@ public sealed class ClassConfigEditorControl : UserControl
         };
         _spellsGrid.UserAddedRow += (_, _) => MarkDirty();
         _spellsGrid.DataError += (_, e) => e.ThrowException = false;
-        panel.Controls.Add(_spellsGrid, 0, 1);
-        panel.Controls.Add(BuildMoveButtons(_spellsGrid), 0, 2);
-        return panel;
+        spellCard.Controls.Add(_spellsGrid, 0, 1);
+        leftColumn.Controls.Add(spellCard, 0, 1);
+        leftColumn.Controls.Add(BuildMoveButtons(_spellsGrid), 0, 2);
+        split.Controls.Add(leftColumn, 0, 0);
+
+        var rightColumn = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            BackColor = UiTheme.SurfaceRaised,
+            Margin = new Padding(5, 0, 0, 0),
+            Padding = new Padding(0)
+        };
+        rightColumn.RowStyles.Add(new RowStyle(SizeType.Absolute, 68));
+        rightColumn.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        var searchCard = new UiCardPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = new Padding(0, 0, 0, 10),
+            Padding = new Padding(12, 8, 12, 8)
+        };
+        searchCard.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 64));
+        searchCard.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        searchCard.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        searchCard.Controls.Add(new Label
+        {
+            Dock = DockStyle.Fill,
+            Text = "搜索",
+            ForeColor = UiTheme.Text,
+            BackColor = Color.Transparent,
+            Font = new Font(Font.FontFamily, 9F, FontStyle.Bold, GraphicsUnit.Point),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Margin = new Padding(0),
+            Padding = new Padding(8, 0, 0, 0)
+        }, 0, 0);
+
+        UiTheme.StyleTextBox(_itemsSearchBox);
+        _itemsSearchBox.Dock = DockStyle.None;
+        _itemsSearchBox.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+        _itemsSearchBox.Margin = new Padding(0);
+        _itemsSearchBox.Height = 30;
+        _itemsSearchBox.PlaceholderText = "itemId 或名称";
+        _itemsSearchBox.TextChanged += (_, _) => ApplyItemsFilter();
+        searchCard.Controls.Add(_itemsSearchBox, 1, 0);
+        rightColumn.Controls.Add(searchCard, 0, 0);
+
+        var itemCard = new UiCardPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            Margin = new Padding(0),
+            Padding = new Padding(0)
+        };
+        itemCard.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        itemCard.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        itemCard.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        var itemHeader = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            BackColor = Color.Transparent,
+            Margin = new Padding(0),
+            Padding = new Padding(12, 0, 12, 0)
+        };
+        itemHeader.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        itemHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        var itemTitle = CreateCardTitle("物品冷却");
+        itemTitle.AutoSize = true;
+        itemTitle.Dock = DockStyle.None;
+        itemTitle.Anchor = AnchorStyles.Left;
+        itemHeader.Controls.Add(itemTitle, 0, 0);
+        var itemHint = CreateFieldCaption("名称可改为业务别名；图标始终按 itemId 匹配。");
+        itemHint.TextAlign = ContentAlignment.MiddleRight;
+        itemHeader.Controls.Add(itemHint, 1, 0);
+        itemCard.Controls.Add(itemHeader, 0, 0);
+
+        ConfigureGrid(_itemsGrid, "class-config-items");
+        _itemsGrid.CellContentClick += HandleDeleteClick;
+        _itemsGrid.CellValueChanged += (_, e) =>
+        {
+            MarkDirty();
+            if (e.RowIndex >= 0 && e.RowIndex < _itemsGrid.Rows.Count)
+            {
+                UpdateItemGridIcon(_itemsGrid.Rows[e.RowIndex]);
+            }
+        };
+        _itemsGrid.UserAddedRow += (_, _) => MarkDirty();
+        _itemsGrid.DataError += (_, e) => e.ThrowException = false;
+        _itemsGrid.Columns.Add(CreateSpellIconColumn());
+        _itemsGrid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            Name = "ItemId",
+            HeaderText = "itemId",
+            Width = 125,
+            SortMode = DataGridViewColumnSortMode.NotSortable
+        });
+        _itemsGrid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            Name = "Name",
+            HeaderText = "名称",
+            AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill,
+            SortMode = DataGridViewColumnSortMode.NotSortable
+        });
+        _itemsGrid.Columns.Add(CreateSpellCheckColumn("IsEquipped", "是否装备中", 12, 110));
+        _itemsGrid.Columns.Add(CreateDeleteColumn());
+        itemCard.Controls.Add(_itemsGrid, 0, 1);
+        rightColumn.Controls.Add(itemCard, 0, 1);
+        split.Controls.Add(rightColumn, 1, 0);
+        return split;
     }
 
     private Control BuildSpellsListPage()
@@ -1374,6 +1826,14 @@ public sealed class ClassConfigEditorControl : UserControl
                 }
             }
 
+            foreach (var item in spec.Items)
+            {
+                if (item.ItemId is { } itemId)
+                {
+                    SpellIconCatalog.RegisterItem(itemId, item.Name);
+                }
+            }
+
             if (spec.Group is not { } group)
             {
                 continue;
@@ -1393,10 +1853,15 @@ public sealed class ClassConfigEditorControl : UserControl
             }
         }
 
-        // spellsList 是用户实际添加/保存技能时使用的名称，优先级高于专精规则中的同 ID 别名。
+        // spellsList / itemsList 是用户实际添加/保存时使用的名称，优先级高于专精规则中的同 ID 别名。
         foreach (var spell in document.SpellsList)
         {
             SpellIconCatalog.Register(spell.SpellId, spell.Name, overwriteIdName: true);
+        }
+
+        foreach (var item in document.ItemsList)
+        {
+            SpellIconCatalog.RegisterItem(item.ItemId, item.Name);
         }
     }
 
@@ -1468,7 +1933,7 @@ public sealed class ClassConfigEditorControl : UserControl
 
         if (!_currentDocument.IsModernFormat)
         {
-            _statusLabel.Text = "此文件仍是旧版稀疏索引格式，请先迁移到 states/auras/spells/group 后再编辑。";
+            _statusLabel.Text = "此文件仍是旧版稀疏索引格式，请先迁移到 states/auras/spells/items/group 后再编辑。";
         }
         else
         {
@@ -1512,6 +1977,7 @@ public sealed class ClassConfigEditorControl : UserControl
         try
         {
             FillSpellsListGrid();
+            FillItemsListGrid();
         }
         finally
         {
@@ -1575,6 +2041,7 @@ public sealed class ClassConfigEditorControl : UserControl
             FillStatesGrid();
             FillAurasGrid();
             FillSpellsGrid();
+            FillItemsGrid();
             FillGroupEditors();
         }
         finally
@@ -1593,28 +2060,6 @@ public sealed class ClassConfigEditorControl : UserControl
         }
 
         var category = _selectedStateCategory;
-        var isItemCategory = string.Equals(category, ClassStateCatalog.CategoryItem, StringComparison.Ordinal);
-        _stateNameColumn.Visible = !isItemCategory;
-        _itemIdColumn.Visible = isItemCategory;
-        _itemNameColumn.Visible = isItemCategory;
-        _statesGrid.EditMode = isItemCategory
-            ? DataGridViewEditMode.EditOnEnter
-            : DataGridViewEditMode.EditProgrammatically;
-        _stateMoveBar.Visible = !isItemCategory;
-        if (isItemCategory)
-        {
-            foreach (var item in _currentSpec.Items.OrderBy(item => item.ItemId ?? long.MaxValue))
-            {
-                _statesGrid.Rows.Add(
-                    DBNull.Value,
-                    item.ItemId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
-                    item.Name,
-                    "×");
-            }
-
-            return;
-        }
-
         BindStateNameColumn(ClassStateCatalog.GetAllOptions(category));
         var storageCategory = ClassStateCatalog.GetStorageCategory(category);
         IEnumerable<string> names = _currentSpec.NestedStates
@@ -1627,8 +2072,481 @@ public sealed class ClassConfigEditorControl : UserControl
         foreach (var name in names)
         {
             EnsureStateOptionAvailable(category, name);
-            _statesGrid.Rows.Add(name, DBNull.Value, DBNull.Value, "×");
+            _statesGrid.Rows.Add(name, "×");
         }
+    }
+
+    private void FillItemsGrid()
+    {
+        _itemsGrid.Rows.Clear();
+        _itemsSearchBox.Clear();
+        if (_currentSpec is null)
+        {
+            return;
+        }
+
+        foreach (var item in _currentSpec.Items.OrderBy(item => item.ItemId ?? long.MaxValue))
+        {
+            if (item.ItemId is { } itemId)
+            {
+                SpellIconCatalog.RegisterItem(itemId, item.Name);
+            }
+
+            var rowIndex = _itemsGrid.Rows.Add(
+                (item.ItemId is { } id ? SpellIconCatalog.GetItem(id) : null)!,
+                item.ItemId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+                item.Name,
+                item.IsEquipped,
+                "×");
+            _itemsGrid.Rows[rowIndex].Tag = item;
+        }
+
+        ApplyItemsFilter();
+    }
+
+    private static void UpdateItemGridIcon(DataGridViewRow row)
+    {
+        if (row.IsNewRow)
+        {
+            row.Cells["Icon"].Value = null;
+            return;
+        }
+
+        var name = row.Cells["Name"].Value?.ToString();
+        Image? icon = null;
+        if (long.TryParse(
+                row.Cells["ItemId"].Value?.ToString(),
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out var itemId)
+            && itemId > 0)
+        {
+            SpellIconCatalog.RegisterItem(itemId, name);
+            icon = SpellIconCatalog.GetItem(itemId);
+        }
+
+        row.Cells["Icon"].Value = icon;
+    }
+
+    private void ApplySpellsFilter()
+    {
+        var query = _spellsSearchBox.Text.Trim();
+        _spellsGrid.ClearSelection();
+        _spellsGrid.CurrentCell = null;
+
+        foreach (DataGridViewRow row in _spellsGrid.Rows)
+        {
+            if (row.IsNewRow)
+            {
+                continue;
+            }
+
+            row.Visible = string.IsNullOrEmpty(query) || SpellsRowMatches(row, query);
+        }
+    }
+
+    private static bool SpellsRowMatches(DataGridViewRow row, string query)
+        => new[] { "SpellId", "Name" }
+            .Select(columnName => row.Cells[columnName].Value?.ToString() ?? string.Empty)
+            .Any(value => value.Contains(query, StringComparison.OrdinalIgnoreCase));
+
+    private void ApplyItemsFilter()
+    {
+        var query = _itemsSearchBox.Text.Trim();
+        _itemsGrid.ClearSelection();
+        _itemsGrid.CurrentCell = null;
+
+        foreach (DataGridViewRow row in _itemsGrid.Rows)
+        {
+            if (row.IsNewRow)
+            {
+                continue;
+            }
+
+            row.Visible = string.IsNullOrEmpty(query) || ItemsRowMatches(row, query);
+        }
+    }
+
+    private static bool ItemsRowMatches(DataGridViewRow row, string query)
+        => new[] { "ItemId", "Name" }
+            .Select(columnName => row.Cells[columnName].Value?.ToString() ?? string.Empty)
+            .Any(value => value.Contains(query, StringComparison.OrdinalIgnoreCase));
+
+    private void ScheduleItemDatabaseFilter()
+    {
+        _itemDatabaseFilterTimer.Stop();
+        _itemDatabaseFilterVersion++;
+        CancelItemDatabaseFilter();
+        if (!_itemDatabaseGrid.IsHandleCreated || IsDisposed || Disposing)
+        {
+            return;
+        }
+
+        if (!SpellIconCatalog.IsItemDatabaseAvailable)
+        {
+            ApplyItemDatabaseResults(ItemDatabaseResultSet.Empty, "未安装物品数据库");
+            return;
+        }
+
+        _itemDatabaseStatusLabel.Text = "正在筛选…";
+        _itemDatabaseFilterTimer.Start();
+    }
+
+    private void RefreshItemDatabase()
+    {
+        if (IsDisposed || Disposing || !_itemDatabaseGrid.IsHandleCreated)
+        {
+            return;
+        }
+
+        _itemDatabaseFilterTimer.Stop();
+        _itemDatabaseFilterVersion++;
+        CancelItemDatabaseFilter();
+        var packageAvailable = SpellIconCatalog.IsItemDatabaseAvailable;
+        _itemDatabaseFilterBox.Enabled = packageAvailable;
+        if (!packageAvailable)
+        {
+            ApplyItemDatabaseResults(ItemDatabaseResultSet.Empty, "未安装物品数据库");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_itemDatabaseFilterBox.Text))
+        {
+            var snapshot = SpellIconCatalog.GetItemSuggestionsSnapshot();
+            ApplyItemDatabaseResults(ItemDatabaseResultSet.FromAll(snapshot));
+            return;
+        }
+
+        _itemDatabaseStatusLabel.Text = "正在筛选…";
+        _ = ApplyItemDatabaseFilterAsync();
+    }
+
+    private async Task ApplyItemDatabaseFilterAsync()
+    {
+        if (IsDisposed || Disposing || !_itemDatabaseGrid.IsHandleCreated)
+        {
+            return;
+        }
+
+        var version = _itemDatabaseFilterVersion;
+        var query = _itemDatabaseFilterBox.Text.Trim();
+        var snapshot = SpellIconCatalog.GetItemSuggestionsSnapshot();
+        var registeredNames = SpellIconCatalog.GetRegisteredItemNamesSnapshot();
+        if (string.IsNullOrEmpty(query))
+        {
+            ApplyItemDatabaseResults(ItemDatabaseResultSet.FromAll(snapshot));
+            return;
+        }
+
+        var cancellation = new CancellationTokenSource();
+        _itemDatabaseFilterCancellation = cancellation;
+        try
+        {
+            var results = await Task.Run(
+                () => FilterItemDatabase(snapshot, registeredNames, query, cancellation.Token),
+                cancellation.Token);
+            if (cancellation.IsCancellationRequested
+                || version != _itemDatabaseFilterVersion
+                || IsDisposed
+                || Disposing)
+            {
+                return;
+            }
+
+            ApplyItemDatabaseResults(results);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            if (ReferenceEquals(_itemDatabaseFilterCancellation, cancellation))
+            {
+                _itemDatabaseFilterCancellation = null;
+            }
+
+            cancellation.Dispose();
+        }
+    }
+
+    private static ItemDatabaseResultSet FilterItemDatabase(
+        IReadOnlyList<ItemSuggestion> source,
+        IReadOnlyDictionary<long, string> registeredNames,
+        string query,
+        CancellationToken cancellationToken)
+    {
+        var numeric = query.All(character => character is >= '0' and <= '9');
+        if (numeric)
+        {
+            return FilterItemDatabaseByIdPrefix(source, query);
+        }
+
+        var indices = new List<int>();
+        for (var index = 0; index < source.Count; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var suggestion = source[index];
+            var name = string.IsNullOrWhiteSpace(suggestion.Name)
+                ? registeredNames.GetValueOrDefault(suggestion.ItemId) ?? string.Empty
+                : suggestion.Name;
+            if (name.Contains(query, StringComparison.OrdinalIgnoreCase))
+            {
+                indices.Add(index);
+            }
+        }
+
+        return ItemDatabaseResultSet.FromIndices(source, indices.ToArray());
+    }
+
+    private static ItemDatabaseResultSet FilterItemDatabaseByIdPrefix(
+        IReadOnlyList<ItemSuggestion> source,
+        string query)
+    {
+        if (source.Count == 0
+            || query.Length > 19
+            || query[0] == '0'
+            || !long.TryParse(query, NumberStyles.None, CultureInfo.InvariantCulture, out var prefix)
+            || prefix <= 0)
+        {
+            return ItemDatabaseResultSet.Empty;
+        }
+
+        var ranges = new List<ItemDatabaseRange>(19);
+        long scale = 1;
+        while (prefix <= long.MaxValue / scale)
+        {
+            var startItemId = prefix * scale;
+            var intervalLength = scale - 1;
+            var endItemId = intervalLength > long.MaxValue - startItemId
+                ? long.MaxValue
+                : startItemId + intervalLength;
+            var startIndex = LowerBoundItemSuggestion(source, startItemId);
+            var endIndex = UpperBoundItemSuggestion(source, endItemId);
+            if (endIndex > startIndex)
+            {
+                ranges.Add(new ItemDatabaseRange(startIndex, endIndex - startIndex));
+            }
+
+            if (scale > long.MaxValue / 10)
+            {
+                break;
+            }
+
+            scale *= 10;
+        }
+
+        return ItemDatabaseResultSet.FromRanges(source, ranges.ToArray());
+    }
+
+    private static int LowerBoundItemSuggestion(IReadOnlyList<ItemSuggestion> source, long itemId)
+    {
+        var low = 0;
+        var high = source.Count;
+        while (low < high)
+        {
+            var middle = low + (high - low) / 2;
+            if (source[middle].ItemId < itemId)
+            {
+                low = middle + 1;
+            }
+            else
+            {
+                high = middle;
+            }
+        }
+
+        return low;
+    }
+
+    private static int UpperBoundItemSuggestion(IReadOnlyList<ItemSuggestion> source, long itemId)
+    {
+        var low = 0;
+        var high = source.Count;
+        while (low < high)
+        {
+            var middle = low + (high - low) / 2;
+            if (source[middle].ItemId <= itemId)
+            {
+                low = middle + 1;
+            }
+            else
+            {
+                high = middle;
+            }
+        }
+
+        return low;
+    }
+
+    private void ApplyItemDatabaseResults(ItemDatabaseResultSet results, string? status = null)
+    {
+        _itemDatabaseGrid.ClearSelection();
+        _itemDatabaseGrid.CurrentCell = null;
+        _itemDatabaseResults = results;
+        _itemDatabaseVisibleCount = Math.Min(ItemDatabasePageSize, results.Count);
+        _itemDatabaseGrid.RowCount = _itemDatabaseVisibleCount;
+        _itemDatabaseStatusLabel.Text = status ?? FormatItemDatabaseStatus();
+        _itemDatabaseGrid.Invalidate();
+    }
+
+    private string FormatItemDatabaseStatus()
+        => _itemDatabaseResults.Count == 0
+            ? "匹配 0 个物品"
+            : $"已显示 {_itemDatabaseVisibleCount:N0} / 共 {_itemDatabaseResults.Count:N0} 个物品";
+
+    private void OnItemDatabaseScroll(object? sender, ScrollEventArgs e)
+    {
+        if (e.ScrollOrientation != ScrollOrientation.VerticalScroll
+            || _expandingItemDatabaseRows
+            || _itemDatabaseVisibleCount >= _itemDatabaseResults.Count
+            || _itemDatabaseGrid.FirstDisplayedScrollingRowIndex < 0)
+        {
+            return;
+        }
+
+        var lastDisplayedRow = _itemDatabaseGrid.FirstDisplayedScrollingRowIndex
+                               + _itemDatabaseGrid.DisplayedRowCount(includePartialRow: true);
+        if (lastDisplayedRow < _itemDatabaseVisibleCount - 2)
+        {
+            return;
+        }
+
+        _expandingItemDatabaseRows = true;
+        try
+        {
+            _itemDatabaseVisibleCount = Math.Min(
+                _itemDatabaseVisibleCount + ItemDatabasePageSize,
+                _itemDatabaseResults.Count);
+            _itemDatabaseGrid.RowCount = _itemDatabaseVisibleCount;
+            _itemDatabaseStatusLabel.Text = FormatItemDatabaseStatus();
+        }
+        finally
+        {
+            _expandingItemDatabaseRows = false;
+        }
+    }
+
+    private void CancelItemDatabaseFilter()
+    {
+        var cancellation = _itemDatabaseFilterCancellation;
+        _itemDatabaseFilterCancellation = null;
+        if (cancellation is null)
+        {
+            return;
+        }
+
+        cancellation.Cancel();
+    }
+
+    private void OnItemDatabaseCellValueNeeded(object? sender, DataGridViewCellValueEventArgs e)
+    {
+        if (e.RowIndex < 0 || e.RowIndex >= _itemDatabaseVisibleCount || e.ColumnIndex < 0)
+        {
+            return;
+        }
+
+        var suggestion = _itemDatabaseResults[e.RowIndex];
+        var displayName = SpellIconCatalog.ResolveItemSuggestionName(suggestion.ItemId, suggestion.Name)
+                          ?? string.Empty;
+        e.Value = _itemDatabaseGrid.Columns[e.ColumnIndex].Name switch
+        {
+            "Icon" => SpellIconCatalog.GetItem(suggestion.ItemId),
+            "ItemId" => suggestion.ItemId.ToString(CultureInfo.InvariantCulture),
+            "Name" => displayName,
+            "Add" => "添加",
+            _ => null
+        };
+    }
+
+    private void OnItemDatabaseCellContentClick(object? sender, DataGridViewCellEventArgs e)
+    {
+        if (e.RowIndex < 0
+            || e.RowIndex >= _itemDatabaseVisibleCount
+            || e.ColumnIndex < 0
+            || _itemDatabaseGrid.Columns[e.ColumnIndex].Name != "Add")
+        {
+            return;
+        }
+
+        var suggestion = _itemDatabaseResults[e.RowIndex];
+        var name = SpellIconCatalog.ResolveItemSuggestionName(suggestion.ItemId, suggestion.Name);
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            MessageBox.Show(
+                $"当前物品数据库缺少 itemId {suggestion.ItemId} 的名称，请更新技能/物品数据包后再添加。",
+                "物品列表",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return;
+        }
+
+        AddItemsListFromDatabase(new ItemSuggestion(suggestion.ItemId, name));
+    }
+
+    private void AddItemsListFromDatabase(ItemSuggestion suggestion)
+    {
+        if (_currentDocument is null)
+        {
+            MessageBox.Show("请先选择一个职业文件。", "物品列表", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        if (!_currentDocument.IsModernFormat)
+        {
+            MessageBox.Show("旧版稀疏索引格式暂不支持添加物品。", "物品列表", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        _itemsListGrid.EndEdit();
+        if (!TryValidateItemsList(out var validationError))
+        {
+            MessageBox.Show(validationError, "物品列表", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        WriteBackItemsList();
+        if (_currentDocument.ItemsList.Any(item => item.ItemId == suggestion.ItemId))
+        {
+            MessageBox.Show(
+                $"已有此物品：{suggestion.Name}（{suggestion.ItemId}）",
+                "物品列表",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        var usedIndices = _currentDocument.ItemsList
+            .Select(item => item.Index)
+            .Where(index => index >= 1)
+            .ToHashSet();
+        var nextIndex = 1;
+        while (usedIndices.Contains(nextIndex))
+        {
+            nextIndex++;
+        }
+
+        var entry = new ClassBlocksStore.ItemsListEntry
+        {
+            ItemId = suggestion.ItemId,
+            Index = nextIndex,
+            Name = suggestion.Name
+        };
+        _currentDocument.ItemsList.Add(entry);
+        SpellIconCatalog.RegisterItem(suggestion.ItemId, suggestion.Name);
+
+        var rowIndex = _itemsListGrid.Rows.Add(
+            suggestion.ItemId.ToString(CultureInfo.InvariantCulture),
+            nextIndex.ToString(CultureInfo.InvariantCulture),
+            SpellIconCatalog.GetItem(suggestion.ItemId)!,
+            suggestion.Name);
+        var row = _itemsListGrid.Rows[rowIndex];
+        row.Tag = entry;
+        _itemsListSearchBox.Clear();
+        ApplyItemsListFilter();
+        row.Selected = true;
+        _itemsListGrid.CurrentCell = row.Cells["ItemId"];
+        _itemsListGrid.FirstDisplayedScrollingRowIndex = rowIndex;
+        MarkDirty();
     }
 
     private void ReloadStatesGrid()
@@ -1849,6 +2767,7 @@ public sealed class ClassConfigEditorControl : UserControl
     private void FillSpellsGrid()
     {
         _spellsGrid.Rows.Clear();
+        _spellsSearchBox.Clear();
         if (_currentSpec is null)
         {
             return;
@@ -1966,6 +2885,49 @@ public sealed class ClassConfigEditorControl : UserControl
             _spellsListGrid.Rows[rowIndex].Tag = spell;
         }
     }
+
+    private void FillItemsListGrid()
+    {
+        _itemsListGrid.Rows.Clear();
+        _itemsListSearchBox.Clear();
+        if (_currentDocument is null)
+        {
+            return;
+        }
+
+        foreach (var item in _currentDocument.ItemsList.OrderBy(entry => entry.Index).ThenBy(entry => entry.ItemId))
+        {
+            SpellIconCatalog.RegisterItem(item.ItemId, item.Name);
+            var rowIndex = _itemsListGrid.Rows.Add(
+                item.ItemId.ToString(CultureInfo.InvariantCulture),
+                item.Index.ToString(CultureInfo.InvariantCulture),
+                SpellIconCatalog.GetItem(item.ItemId)!,
+                item.Name);
+            _itemsListGrid.Rows[rowIndex].Tag = item;
+        }
+    }
+
+    private void ApplyItemsListFilter()
+    {
+        var query = _itemsListSearchBox.Text.Trim();
+        _itemsListGrid.ClearSelection();
+        _itemsListGrid.CurrentCell = null;
+
+        foreach (DataGridViewRow row in _itemsListGrid.Rows)
+        {
+            if (row.IsNewRow)
+            {
+                continue;
+            }
+
+            row.Visible = string.IsNullOrEmpty(query) || ItemsListRowMatches(row, query);
+        }
+    }
+
+    private static bool ItemsListRowMatches(DataGridViewRow row, string query)
+        => new[] { "ItemId", "Index", "Name" }
+            .Select(columnName => row.Cells[columnName].Value?.ToString() ?? string.Empty)
+            .Any(value => value.Contains(query, StringComparison.OrdinalIgnoreCase));
 
     private void ApplySpellsListFilter()
     {
@@ -2376,11 +3338,14 @@ public sealed class ClassConfigEditorControl : UserControl
             return;
         }
 
+        _itemsGrid.EndEdit();
+        _spellsGrid.EndEdit();
         NormalizeFixedStateNames(_currentSpec);
         WriteBackStatesCategory(_lastStateCategory);
 
         WriteBackAuras(_lastAuraBucket);
         WriteBackSpells();
+        WriteBackItems();
         WriteBackGroup();
     }
 
@@ -2406,6 +3371,43 @@ public sealed class ClassConfigEditorControl : UserControl
                 row.Cells["Index"].Value?.ToString()?.Trim() ?? "",
                 NumberStyles.None,
                 CultureInfo.InvariantCulture);
+            entry.Name = row.Cells["Name"].Value?.ToString()?.Trim() ?? "";
+        }
+    }
+
+    private void WriteBackItemsList()
+    {
+        if (_currentDocument is null)
+        {
+            return;
+        }
+
+        foreach (DataGridViewRow row in _itemsListGrid.Rows)
+        {
+            if (row.IsNewRow || row.Tag is not ClassBlocksStore.ItemsListEntry entry)
+            {
+                continue;
+            }
+
+            if (!long.TryParse(
+                    row.Cells["ItemId"].Value?.ToString()?.Trim(),
+                    NumberStyles.None,
+                    CultureInfo.InvariantCulture,
+                    out var itemId))
+            {
+                continue;
+            }
+
+            entry.ItemId = itemId;
+            if (int.TryParse(
+                    row.Cells["Index"].Value?.ToString()?.Trim(),
+                    NumberStyles.None,
+                    CultureInfo.InvariantCulture,
+                    out var index))
+            {
+                entry.Index = index;
+            }
+
             entry.Name = row.Cells["Name"].Value?.ToString()?.Trim() ?? "";
         }
     }
@@ -2492,6 +3494,7 @@ public sealed class ClassConfigEditorControl : UserControl
         }
 
         RefreshSpellDatabase();
+        RefreshItemDatabase();
         foreach (var grid in new[] { _spellsGrid, _spellsListGrid })
         {
             foreach (DataGridViewRow row in grid.Rows)
@@ -2504,6 +3507,21 @@ public sealed class ClassConfigEditorControl : UserControl
 
             grid.Invalidate();
         }
+
+        foreach (var grid in new[] { _itemsGrid, _itemsListGrid })
+        {
+            foreach (DataGridViewRow row in grid.Rows)
+            {
+                if (!row.IsNewRow)
+                {
+                    UpdateItemGridIcon(row);
+                }
+            }
+
+            grid.Invalidate();
+        }
+
+        _itemDatabaseGrid.Invalidate();
 
         foreach (var grid in new[] { _aurasGrid, _groupAurasGrid })
         {
@@ -2571,6 +3589,63 @@ public sealed class ClassConfigEditorControl : UserControl
         return true;
     }
 
+    private bool TryValidateItemsList(out string error)
+    {
+        error = string.Empty;
+        if (_currentDocument is null)
+        {
+            return true;
+        }
+
+        var itemIds = new HashSet<long>();
+        var indices = new HashSet<int>();
+        foreach (DataGridViewRow row in _itemsListGrid.Rows)
+        {
+            if (row.IsNewRow)
+            {
+                continue;
+            }
+
+            var rowNumber = row.Index + 1;
+            if (!long.TryParse(row.Cells["ItemId"].Value?.ToString()?.Trim(), NumberStyles.None,
+                    CultureInfo.InvariantCulture, out var itemId)
+                || itemId <= 0)
+            {
+                error = $"物品列表第 {rowNumber} 行 itemId 必须是正整数。";
+                return false;
+            }
+
+            if (!int.TryParse(row.Cells["Index"].Value?.ToString()?.Trim(), NumberStyles.None,
+                    CultureInfo.InvariantCulture, out var index)
+                || index <= 0)
+            {
+                error = $"物品列表第 {rowNumber} 行的索引必须是正整数。";
+                return false;
+            }
+
+            var name = row.Cells["Name"].Value?.ToString()?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                error = $"物品列表第 {rowNumber} 行名称不能为空。";
+                return false;
+            }
+
+            if (!itemIds.Add(itemId))
+            {
+                error = $"物品列表 itemId {itemId} 重复。";
+                return false;
+            }
+
+            if (!indices.Add(index))
+            {
+                error = $"物品列表索引 {index} 重复。";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private bool TryValidateItems(out string error)
     {
         error = string.Empty;
@@ -2586,26 +3661,27 @@ public sealed class ClassConfigEditorControl : UserControl
                 continue;
             }
 
-            if (!spec.NestedStates)
-            {
-                error = $"专精 {specId} 仍使用平面 states，无法保存 itemId 物品配置。";
-                return false;
-            }
-
             var itemIds = new HashSet<long>();
             var itemNames = new HashSet<string>(StringComparer.Ordinal);
             var bareNames = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var category in new[]
-                     {
-                         ClassStateCatalog.CategoryState,
-                         ClassStateCatalog.CategoryResource,
-                         ClassStateCatalog.CategoryConfig
-                     })
+            if (spec.NestedStates)
             {
-                foreach (var name in spec.CategorizedStates.GetValueOrDefault(category) ?? [])
+                foreach (var category in new[]
+                         {
+                             ClassStateCatalog.CategoryState,
+                             ClassStateCatalog.CategoryResource,
+                             ClassStateCatalog.CategoryConfig
+                         })
                 {
-                    bareNames.Add(name);
+                    foreach (var name in spec.CategorizedStates.GetValueOrDefault(category) ?? [])
+                    {
+                        bareNames.Add(name);
+                    }
                 }
+            }
+            else
+            {
+                bareNames.UnionWith(spec.FlatStates);
             }
 
             for (var index = 0; index < spec.Items.Count; index++)
@@ -2651,30 +3727,6 @@ public sealed class ClassConfigEditorControl : UserControl
     {
         if (_currentSpec is null)
         {
-            return;
-        }
-
-        if (string.Equals(category, ClassStateCatalog.CategoryItem, StringComparison.Ordinal))
-        {
-            _currentSpec.Items.Clear();
-            foreach (DataGridViewRow row in _statesGrid.Rows)
-            {
-                if (row.IsNewRow)
-                {
-                    continue;
-                }
-
-                var idText = row.Cells["ItemId"].Value?.ToString()?.Trim();
-                var name = row.Cells["ItemName"].Value?.ToString()?.Trim() ?? string.Empty;
-                long? itemId = long.TryParse(idText, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedId)
-                    ? parsedId
-                    : null;
-                if (itemId is not null || name.Length > 0)
-                {
-                    _currentSpec.Items.Add(new ClassBlocksStore.ItemEntry { ItemId = itemId, Name = name });
-                }
-            }
-
             return;
         }
 
@@ -2767,6 +3819,38 @@ public sealed class ClassConfigEditorControl : UserControl
             }
 
             list.Add(entry);
+        }
+    }
+
+    private void WriteBackItems()
+    {
+        if (_currentSpec is null)
+        {
+            return;
+        }
+
+        _currentSpec.Items.Clear();
+        foreach (DataGridViewRow row in _itemsGrid.Rows)
+        {
+            if (row.IsNewRow)
+            {
+                continue;
+            }
+
+            var idText = row.Cells["ItemId"].Value?.ToString()?.Trim();
+            var name = row.Cells["Name"].Value?.ToString()?.Trim() ?? string.Empty;
+            long? itemId = long.TryParse(idText, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedId)
+                ? parsedId
+                : null;
+            if (itemId is not null || name.Length > 0)
+            {
+                _currentSpec.Items.Add(new ClassBlocksStore.ItemEntry
+                {
+                    ItemId = itemId,
+                    Name = name,
+                    IsEquipped = row.Cells["IsEquipped"].Value is true
+                });
+            }
         }
     }
 
@@ -2886,10 +3970,20 @@ public sealed class ClassConfigEditorControl : UserControl
         try
         {
             _spellsListGrid.EndEdit();
+            _itemsListGrid.EndEdit();
             _statesGrid.EndEdit();
+            _spellsGrid.EndEdit();
+            _itemsGrid.EndEdit();
             if (!TryValidateSpellsList(out var validationError))
             {
                 MessageBox.Show(validationError, "技能列表", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                _statusLabel.Text = validationError;
+                return;
+            }
+
+            if (!TryValidateItemsList(out validationError))
+            {
+                MessageBox.Show(validationError, "物品列表", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 _statusLabel.Text = validationError;
                 return;
             }
@@ -2898,12 +3992,13 @@ public sealed class ClassConfigEditorControl : UserControl
             CommitCurrentSpecFromUi();
             if (!TryValidateItems(out validationError))
             {
-                MessageBox.Show(validationError, "物品", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(validationError, "物品冷却", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 _statusLabel.Text = validationError;
                 return;
             }
 
             WriteBackSpellsList();
+            WriteBackItemsList();
             ClassBlocksStore.Save(_currentDocument);
             localSaved = true;
             SetDirty(false);
@@ -3000,6 +4095,11 @@ public sealed class ClassConfigEditorControl : UserControl
         _statesGrid.Rows.Clear();
         _aurasGrid.Rows.Clear();
         _spellsGrid.Rows.Clear();
+        _spellsSearchBox.Clear();
+        _itemsGrid.Rows.Clear();
+        _itemsSearchBox.Clear();
+        _itemsListGrid.Rows.Clear();
+        _itemsListSearchBox.Clear();
         _spellsListGrid.Rows.Clear();
         _spellsListSearchBox.Clear();
         _groupAurasGrid.Rows.Clear();
@@ -3056,6 +4156,36 @@ public sealed class ClassConfigEditorControl : UserControl
         MarkDirty();
     }
 
+    private void HandleItemsListDeleteClick(object? sender, DataGridViewCellEventArgs e)
+    {
+        if (sender is not DataGridView grid
+            || e.RowIndex < 0
+            || e.ColumnIndex < 0
+            || grid.Columns[e.ColumnIndex].Name != "Delete")
+        {
+            return;
+        }
+
+        var row = grid.Rows[e.RowIndex];
+        if (row.IsNewRow || row.Tag is not ClassBlocksStore.ItemsListEntry entry)
+        {
+            return;
+        }
+
+        if (_currentDocument is not null)
+        {
+            if (entry.OriginalItemId > 0)
+            {
+                _currentDocument.DeletedItemsListOriginalIds.Add(entry.OriginalItemId);
+            }
+
+            _currentDocument.ItemsList.Remove(entry);
+        }
+
+        grid.Rows.RemoveAt(e.RowIndex);
+        MarkDirty();
+    }
+
     private void MoveSelectedRow(DataGridView grid, int delta)
     {
         if (grid.CurrentRow is null || grid.CurrentRow.IsNewRow)
@@ -3065,6 +4195,11 @@ public sealed class ClassConfigEditorControl : UserControl
 
         var index = grid.CurrentRow.Index;
         var target = index + delta;
+        while (target >= 0 && target < grid.Rows.Count && !grid.Rows[target].IsNewRow && !grid.Rows[target].Visible)
+        {
+            target += delta;
+        }
+
         if (target < 0 || target >= grid.Rows.Count || grid.Rows[target].IsNewRow)
         {
             return;
@@ -3114,6 +4249,90 @@ public sealed class ClassConfigEditorControl : UserControl
 
     private static bool IsHiddenStateName(string? name)
         => name is not null && FixedStateNames.Contains(name, StringComparer.Ordinal);
+
+    private readonly record struct ItemDatabaseRange(int SourceIndex, int Count);
+
+    private sealed class ItemDatabaseResultSet
+    {
+        private readonly IReadOnlyList<ItemSuggestion> _source;
+        private readonly ItemDatabaseRange[]? _ranges;
+        private readonly int[]? _indices;
+
+        private ItemDatabaseResultSet(
+            IReadOnlyList<ItemSuggestion> source,
+            ItemDatabaseRange[]? ranges,
+            int[]? indices,
+            int count)
+        {
+            _source = source;
+            _ranges = ranges;
+            _indices = indices;
+            Count = count;
+        }
+
+        public static ItemDatabaseResultSet Empty { get; } = new(
+            Array.Empty<ItemSuggestion>(),
+            Array.Empty<ItemDatabaseRange>(),
+            null,
+            0);
+
+        public int Count { get; }
+
+        public ItemSuggestion this[int index]
+        {
+            get
+            {
+                if (index < 0 || index >= Count)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(index));
+                }
+
+                if (_indices is not null)
+                {
+                    return _source[_indices[index]];
+                }
+
+                var remaining = index;
+                foreach (var range in _ranges!)
+                {
+                    if (remaining < range.Count)
+                    {
+                        return _source[range.SourceIndex + remaining];
+                    }
+
+                    remaining -= range.Count;
+                }
+
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+        }
+
+        public static ItemDatabaseResultSet FromAll(IReadOnlyList<ItemSuggestion> source)
+            => source.Count == 0
+                ? Empty
+                : new ItemDatabaseResultSet(
+                    source,
+                    [new ItemDatabaseRange(0, source.Count)],
+                    null,
+                    source.Count);
+
+        public static ItemDatabaseResultSet FromRanges(
+            IReadOnlyList<ItemSuggestion> source,
+            ItemDatabaseRange[] ranges)
+        {
+            var count = ranges.Sum(range => range.Count);
+            return count == 0
+                ? Empty
+                : new ItemDatabaseResultSet(source, ranges, null, count);
+        }
+
+        public static ItemDatabaseResultSet FromIndices(
+            IReadOnlyList<ItemSuggestion> source,
+            int[] indices)
+            => indices.Length == 0
+                ? Empty
+                : new ItemDatabaseResultSet(source, null, indices, indices.Length);
+    }
 
     private readonly record struct SpellDatabaseRange(int SourceIndex, int Count);
 

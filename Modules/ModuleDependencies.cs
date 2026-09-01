@@ -73,6 +73,7 @@ public sealed class ModuleItemSnapshot
 {
     public long ItemId { get; set; }
     public string Name { get; set; } = string.Empty;
+    public bool IsEquipped { get; set; }
 
     public ModuleItemSnapshot Clone() => (ModuleItemSnapshot)MemberwiseClone();
 }

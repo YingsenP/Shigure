@@ -71,7 +71,7 @@ verified_at: "2026-08-10"
 | 变更 | 契约入口 | 典型影响 |
 |---|---|---|
 | 主色块数量、RGB、标记或物理布局 | [[40-跨项目/01-Shigure-像素生产消费契约|像素契约]] | `core/block.lua`、PixelScanner、StateBuilder、截图验证 |
-| `states/auras/spells/group` 结构或顺序 | [[40-跨项目/02-Shigure-ClassBlocks到config同步契约|ClassBlocks 契约]] | LoadPlayerBlocks、Store、Converter、config、module 字段 |
+| `states/auras/spells/items/group` 结构或顺序 | [[40-跨项目/02-Shigure-ClassBlocks到config同步契约|ClassBlocks 契约]] | LoadPlayerBlocks、Store、Converter、config、module 字段 |
 | 宏顺序、动态占位、热键池 | [[40-跨项目/03-Shigure-ClassMacros到keymap与按键契约|宏与热键契约]] | CreateMacro、KeymapConverter、keymap、实际绑定 |
 | 单位编号、宏条件、module schema | 宏与热键契约 | 版本常量、迁移、编辑器、已有 module JSON |
 | `GameState` 名称或类型 | ClassBlocks 契约 | config、条件字段目录、规则、动态字段、UI |

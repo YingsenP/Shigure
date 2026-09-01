@@ -10,7 +10,7 @@ namespace Shigure;
 public sealed class ClassMacrosEditorControl : UserControl
 {
     private readonly Func<string?> _resolveClassMacrosPath;
-    private readonly Func<string, Task<string?>> _updateConfigAsync;
+    private readonly Func<string, int, Task<ClassConfigPostSaveResult>> _updateConfigAsync;
 
     private readonly ListBox _classList = new();
     private readonly Label _pathLabel = new();
@@ -25,6 +25,10 @@ public sealed class ClassMacrosEditorControl : UserControl
     private readonly DataGridView _staticGrid = new();
     private readonly DataGridView _specialGrid = new();
 
+    private IReadOnlyDictionary<string, string> _macroBodies =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+    private readonly Dictionary<string, List<long>> _classSpellIdsByName = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, List<long>> _classItemIdsByName = new(StringComparer.Ordinal);
     private ClassMacrosStore.MacrosDocument? _document;
     private ClassMacrosStore.ClassMacros? _currentMacros;
     private string? _currentClassFile;
@@ -39,14 +43,25 @@ public sealed class ClassMacrosEditorControl : UserControl
 
     public ClassMacrosEditorControl(
         Func<string?> resolveClassMacrosPath,
-        Func<string, Task<string?>> updateConfigAsync)
+        Func<string, int, Task<ClassConfigPostSaveResult>> updateConfigAsync)
     {
         _resolveClassMacrosPath = resolveClassMacrosPath;
         _updateConfigAsync = updateConfigAsync;
         _reloadButton = UiTheme.CreateButton("刷新", UiTheme.ButtonKind.Secondary);
         _saveButton = UiTheme.CreateButton("保存", UiTheme.ButtonKind.Primary);
         InitializeComponent();
+        SpellIconCatalog.CatalogChanged += OnSpellIconCatalogChanged;
         ReloadFromAddon();
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            SpellIconCatalog.CatalogChanged -= OnSpellIconCatalogChanged;
+        }
+
+        base.Dispose(disposing);
     }
 
     private void InitializeComponent()
@@ -343,6 +358,7 @@ public sealed class ClassMacrosEditorControl : UserControl
         editor.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
 
         ConfigureGrid(_dynamicGrid, "class-macros-dynamic");
+        _dynamicGrid.Columns.Add(CreateMacroIconColumn());
         _dynamicGrid.Columns.Add(new DataGridViewTextBoxColumn
         {
             Name = "Name",
@@ -428,6 +444,7 @@ public sealed class ClassMacrosEditorControl : UserControl
             Width = 72,
             ReadOnly = true
         });
+        grid.Columns.Add(CreateMacroIconColumn());
         if (showParsedMacro)
         {
             grid.Columns.Add(new DataGridViewTextBoxColumn
@@ -497,6 +514,11 @@ public sealed class ClassMacrosEditorControl : UserControl
                 && grid.Columns[e.ColumnIndex].Name is "Text" or "Comment")
             {
                 UpdateMacroDisplay(grid, grid.Rows[e.RowIndex]);
+            }
+
+            if (e.RowIndex >= 0 && e.RowIndex < grid.Rows.Count)
+            {
+                UpdateMacroIcon(grid, grid.Rows[e.RowIndex]);
             }
 
             MarkDirty();
@@ -664,6 +686,7 @@ public sealed class ClassMacrosEditorControl : UserControl
             try
             {
                 _document = ClassMacrosStore.Load(path);
+                _macroBodies = ClassMacrosStore.LoadMacroBodies(path);
             }
             catch (Exception ex)
             {
@@ -757,6 +780,8 @@ public sealed class ClassMacrosEditorControl : UserControl
 
         _currentClassFile = item.ClassFile;
         _currentClassId = item.ClassId > 0 ? item.ClassId : null;
+        _currentDynamicSpecIndex = null;
+        ReloadClassIconAliases();
         if (_document is null)
         {
             _currentMacros = null;
@@ -852,7 +877,9 @@ public sealed class ClassMacrosEditorControl : UserControl
 
         CommitCurrentDynamicFromUi();
         _currentDynamicSpecIndex = option.SpecIndex;
+        ReloadClassIconAliases();
         FillDynamicEditor();
+        RefreshAllMacroIcons();
         UpdateOffsetHint();
     }
 
@@ -873,7 +900,8 @@ public sealed class ClassMacrosEditorControl : UserControl
                 : _currentMacros.DynamicCommon;
             foreach (var name in spells)
             {
-                _dynamicGrid.Rows.Add(name, "×");
+                var rowIndex = _dynamicGrid.Rows.Add(ResolveNamedMacroIcon(name)!, name, "×");
+                UpdateMacroIcon(_dynamicGrid, _dynamicGrid.Rows[rowIndex]);
             }
         }
         finally
@@ -992,6 +1020,12 @@ public sealed class ClassMacrosEditorControl : UserControl
             return;
         }
 
+        if (_currentClassId is not { } classId)
+        {
+            MessageBox.Show("请先选择职业。", "宏", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
         var localSaved = false;
         try
         {
@@ -1000,17 +1034,18 @@ public sealed class ClassMacrosEditorControl : UserControl
             localSaved = true;
             SetDirty(false);
             _statusLabel.Text = "本地 Lua 已保存，正在更新配置并同步游戏…";
-            var syncIssue = await _updateConfigAsync(_document.FilePath);
+            var updateResult = await _updateConfigAsync(_document.FilePath, classId);
             if (IsDisposed)
             {
                 return;
             }
 
-            if (!string.IsNullOrWhiteSpace(syncIssue))
+            if (!string.IsNullOrWhiteSpace(updateResult.AddonSyncIssue))
             {
                 _statusLabel.Text = "本地已保存并更新配置，但游戏同步失败";
                 MessageBox.Show(
-                    $"本地 Lua 已保存，config/keymap 已更新，但游戏插件同步未完成：\n{syncIssue}",
+                    $"本地 Lua、该职业的 {updateResult.SavedModuleCount} 个模块及 config/keymap 已保存，"
+                    + $"但游戏插件同步未完成：\n{updateResult.AddonSyncIssue}",
                     "游戏同步失败",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
@@ -1018,13 +1053,16 @@ public sealed class ClassMacrosEditorControl : UserControl
                 return;
             }
 
-            _statusLabel.Text = "已保存并更新配置";
+            _statusLabel.Text = $"已保存宏及该职业的 {updateResult.SavedModuleCount} 个模块";
             UpdateOffsetHint();
+            var warningText = updateResult.ModuleWarnings.Count == 0
+                ? string.Empty
+                : $"\n\n有 {updateResult.ModuleWarnings.Count} 个模块未携带依赖，详情见日志。";
             MessageBox.Show(
-                "请在游戏内重载界面,  /reload",
+                $"已一并保存该职业的 {updateResult.SavedModuleCount} 个模块。{warningText}\n\n请在游戏内重载界面,  /reload",
                 "保存成功",
                 MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
+                updateResult.ModuleWarnings.Count == 0 ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
         }
         catch (Exception ex)
         {
@@ -1170,6 +1208,8 @@ public sealed class ClassMacrosEditorControl : UserControl
             {
                 UpdateMacroDisplay(grid, row);
             }
+
+            UpdateMacroIcon(grid, row);
         }
     }
 
@@ -1193,12 +1233,258 @@ public sealed class ClassMacrosEditorControl : UserControl
             row.Cells["Unit"].Value = parsed.Unit.ToString(CultureInfo.InvariantCulture);
             row.Cells["Spell"].Value = parsed.Spell;
             row.Cells["Condition"].Value = MacroConditionText.ToDisplayText(parsed.Condition);
+            UpdateMacroIcon(grid, row);
         }
         finally
         {
             _updatingDerivedColumns = false;
         }
     }
+
+    private void OnSpellIconCatalogChanged()
+    {
+        if (IsDisposed || Disposing || !IsHandleCreated)
+        {
+            return;
+        }
+
+        if (InvokeRequired)
+        {
+            BeginInvoke(OnSpellIconCatalogChanged);
+            return;
+        }
+
+        ReloadClassIconAliases();
+        RefreshAllMacroIcons();
+    }
+
+    private void RefreshAllMacroIcons()
+    {
+        foreach (var grid in new[] { _dynamicGrid, _staticGrid, _specialGrid })
+        {
+            foreach (DataGridViewRow row in grid.Rows)
+            {
+                if (!row.IsNewRow)
+                {
+                    UpdateMacroIcon(grid, row);
+                }
+            }
+
+            grid.Invalidate();
+        }
+    }
+
+    private void ReloadClassIconAliases()
+    {
+        _classSpellIdsByName.Clear();
+        _classItemIdsByName.Clear();
+        if (_currentClassId is not { } classId || classId <= 0)
+        {
+            return;
+        }
+
+        var macrosPath = _resolveClassMacrosPath();
+        if (string.IsNullOrWhiteSpace(macrosPath))
+        {
+            return;
+        }
+
+        var classDirectory = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(macrosPath)!, "..", "class"));
+        var classPath = Path.Combine(classDirectory, $"{ClassNames.GetConfigFileName(classId)}.lua");
+        if (!File.Exists(classPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var document = ClassBlocksStore.Load(classPath);
+            foreach (var spell in document.SpellsList)
+            {
+                if (spell.SpellId <= 0 || string.IsNullOrWhiteSpace(spell.Name))
+                {
+                    continue;
+                }
+
+                var name = spell.Name.Trim();
+                AddNamedId(_classSpellIdsByName, name, spell.SpellId);
+                SpellIconCatalog.Register(spell.SpellId, name, overwriteIdName: true);
+            }
+
+            foreach (var spec in OrderedSpecsForIcons(document))
+            {
+                foreach (var item in spec.Items)
+                {
+                    if (item.ItemId is not { } itemId || itemId <= 0 || string.IsNullOrWhiteSpace(item.Name))
+                    {
+                        continue;
+                    }
+
+                    var name = item.Name.Trim();
+                    AddNamedId(_classItemIdsByName, name, itemId);
+                    SpellIconCatalog.RegisterItem(itemId, name);
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+            or InvalidDataException or ArgumentException)
+        {
+            // 当前职业配置缺失时仍可用数据包按名称匹配。
+        }
+    }
+
+    private IEnumerable<ClassBlocksStore.SpecBlocks> OrderedSpecsForIcons(ClassBlocksStore.ClassFileDocument document)
+    {
+        if (_currentDynamicSpecIndex is { } specId && document.Specs.TryGetValue(specId, out var current))
+        {
+            yield return current;
+            foreach (var spec in document.Specs.Where(pair => pair.Key != specId).Select(pair => pair.Value))
+            {
+                yield return spec;
+            }
+
+            yield break;
+        }
+
+        foreach (var spec in document.Specs.Values)
+        {
+            yield return spec;
+        }
+    }
+
+    private static void AddNamedId(Dictionary<string, List<long>> map, string name, long id)
+    {
+        if (!map.TryGetValue(name, out var ids))
+        {
+            ids = [];
+            map[name] = ids;
+        }
+
+        if (!ids.Contains(id))
+        {
+            ids.Add(id);
+        }
+    }
+
+    private void UpdateMacroIcon(DataGridView grid, DataGridViewRow row)
+    {
+        if (!grid.Columns.Contains("Icon") || row.IsNewRow)
+        {
+            return;
+        }
+
+        row.Cells["Icon"].Value = ResolveMacroItemIcon(grid, row);
+    }
+
+    private Image? ResolveMacroItemIcon(DataGridView grid, DataGridViewRow row)
+    {
+        if (grid.Columns.Contains("Spell"))
+        {
+            var icon = ResolveNamedMacroIcon(row.Cells["Spell"].Value?.ToString());
+            if (icon is not null)
+            {
+                return icon;
+            }
+        }
+
+        if (grid.Columns.Contains("Name"))
+        {
+            var icon = ResolveNamedMacroIcon(row.Cells["Name"].Value?.ToString());
+            if (icon is not null)
+            {
+                return icon;
+            }
+        }
+
+        if (grid.Columns.Contains("Text"))
+        {
+            return ResolveItemReferenceIcon(row.Cells["Text"].Value?.ToString());
+        }
+
+        return null;
+    }
+
+    private Image? ResolveNamedMacroIcon(string? name)
+    {
+        var normalized = name?.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return null;
+        }
+
+        var itemReferenceIcon = ResolveItemReferenceIcon(normalized);
+        if (itemReferenceIcon is not null)
+        {
+            return itemReferenceIcon;
+        }
+
+        if (_classSpellIdsByName.TryGetValue(normalized, out var spellIds))
+        {
+            foreach (var spellId in spellIds)
+            {
+                var icon = SpellIconCatalog.Get(spellId);
+                if (icon is not null)
+                {
+                    return icon;
+                }
+            }
+        }
+
+        if (_classItemIdsByName.TryGetValue(normalized, out var itemIds))
+        {
+            foreach (var itemId in itemIds)
+            {
+                var icon = SpellIconCatalog.GetItem(itemId);
+                if (icon is not null)
+                {
+                    return icon;
+                }
+            }
+        }
+
+        return SpellIconCatalog.Get(normalized) ?? SpellIconCatalog.GetItem(normalized);
+    }
+
+    private Image? ResolveItemReferenceIcon(string? text)
+    {
+        var normalized = text?.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return null;
+        }
+
+        if (SpellIconCatalog.TryParseItemReference(normalized, out var itemId))
+        {
+            return SpellIconCatalog.GetItem(itemId);
+        }
+
+        if (_macroBodies.TryGetValue(normalized, out var body)
+            && SpellIconCatalog.TryParseItemReference(body, out itemId))
+        {
+            return SpellIconCatalog.GetItem(itemId);
+        }
+
+        return null;
+    }
+
+    private static DataGridViewImageColumn CreateMacroIconColumn()
+        => new()
+        {
+            Name = "Icon",
+            HeaderText = "图标",
+            Width = 54,
+            MinimumWidth = 54,
+            AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+            ImageLayout = DataGridViewImageCellLayout.Zoom,
+            ReadOnly = true,
+            SortMode = DataGridViewColumnSortMode.NotSortable,
+            DefaultCellStyle = new DataGridViewCellStyle
+            {
+                Alignment = DataGridViewContentAlignment.MiddleCenter,
+                NullValue = null,
+                BackColor = UiTheme.SurfaceRaised
+            }
+        };
 
     private static void RenumberArrayRows(DataGridView grid)
     {

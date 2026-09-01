@@ -40,7 +40,11 @@ public sealed class LogicRegistry : IRuntimeLogic
         var module = FindModule(classId, specId, state);
         if (module is not null)
         {
-            ModuleLogic.ResolveDynamicFields(module, state, _keymap.GetCurrentSpellIndices());
+            ModuleLogic.ResolveDynamicFields(
+                module,
+                state,
+                _keymap.GetCurrentSpellIndices(),
+                _keymap.GetCurrentItemIndices());
             return new LogicEvaluation(
                 module.Name,
                 runLogic ? ModuleLogic.Run(module, state, _keymap) : null);

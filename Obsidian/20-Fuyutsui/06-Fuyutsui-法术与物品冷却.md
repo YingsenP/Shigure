@@ -66,6 +66,7 @@ verified_at: 2026-08-19
 | 输入 | 处理 | 输出 |
 |---|---|---|
 | `ClassBlocks.spells` | 顺序分配 1 或 2 个主行槽位 | 冷却、充能恢复像素 |
+| `ClassBlocks.items` | 按 itemId 升序分配主行槽位 | 物品冷却与可用性像素 |
 | 法术书/天赋状态 | 已知法术筛选、`forcedKnown`/`inSpellBook` 例外 | 可更新集合；未知法术写 255 |
 | Cooldown/Charge Duration | 经 `curve255` 求剩余时间颜色 | `B=0..255` |
 | `castCount`、`maxCharge` | CountBars 自动布局 | 横向计数条 |
@@ -131,9 +132,9 @@ verified_at: 2026-08-19
 
 ## 物品状态
 
-- `GetItemCount()` 汇总治疗药水、法力药水、治疗石及若干当前版本消耗品的多个 ItemID。
-- `GetItemRemainingTime()` 返回剩余秒数；冷却不可用时返回 255，无冷却时返回 0。
-- `UpdateItemCooldown()` 通过裸状态键更新“治疗药水、魔法药水、治疗石、鲁莽药水、圣光潜力”。
+- `ClassBlocks.items[itemId]` 声明名称和 `isEquipped`，并在法术之后获得独立主行槽位。
+- `GetItemRemainingTime()` 对普通物品检查背包数量，对 `isEquipped=true` 的物品检查装备状态；不存在或不可用时返回 255，无冷却时返回 0。
+- `UpdateItemCooldown()` 遍历当前专精的 `blocks.items`，把各物品冷却直接写入已分配的索引。
 
 ItemID 是版本敏感数据；新增同类物品必须更新聚合列表和相应 getter。
 

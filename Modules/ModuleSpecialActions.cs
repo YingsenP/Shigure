@@ -6,8 +6,11 @@ internal static class ModuleSpecialActions
 {
     public const string PauseSpell = "暂停";
     public const string InsertSpellState = "插入法术";
+    public const string InsertItemState = "插入物品";
     public const string FailedSpell = "自动插入法术";
+    public const string FailedItem = "自动插入物品";
     public const string OneKeySpell = "一键法术";
+    public const string OneKeyItem = "一键物品";
 
     public static bool IsPauseSpell(string? spell)
     {
@@ -19,12 +22,22 @@ internal static class ModuleSpecialActions
         return string.Equals(spell?.Trim(), FailedSpell, StringComparison.Ordinal);
     }
 
-    /// <summary>旧模块动作中的“插入法术”迁移为新的特殊动作名，条件字段不在此处改写。</summary>
+    public static bool IsFailedItem(string? spell)
+    {
+        return string.Equals(spell?.Trim(), FailedItem, StringComparison.Ordinal);
+    }
+
+    /// <summary>旧模块动作中的“插入法术”迁移为“自动插入法术”；“插入物品”迁移为“自动插入物品”。条件字段不在此处改写。</summary>
     public static string NormalizeSpellAction(string? spell)
     {
         var normalized = spell?.Trim() ?? string.Empty;
-        return string.Equals(normalized, InsertSpellState, StringComparison.Ordinal)
-            ? FailedSpell
+        if (string.Equals(normalized, InsertSpellState, StringComparison.Ordinal))
+        {
+            return FailedSpell;
+        }
+
+        return string.Equals(normalized, InsertItemState, StringComparison.Ordinal)
+            ? FailedItem
             : normalized;
     }
 
@@ -45,6 +58,29 @@ internal static class ModuleSpecialActions
             && IsZero(cooldown)
                 ? spellId
                 : null;
+    }
+
+    public static long? GetFailedItem(
+        GameState state,
+        IReadOnlyDictionary<int, long>? insertItemMap)
+    {
+        var insertItemIndex = state.GetInt(InsertItemState);
+        if (insertItemMap is null || !insertItemMap.TryGetValue(insertItemIndex, out var itemId))
+        {
+            return null;
+        }
+
+        foreach (var (name, trackedItemId) in state.ItemIds)
+        {
+            if (trackedItemId != itemId)
+            {
+                continue;
+            }
+
+            return IsZero(state.GetValue(name)) ? itemId : null;
+        }
+
+        return itemId;
     }
 
     public static long? GetOneKeySpell(GameState state, IReadOnlyDictionary<int, long>? oneKeySpellMap)

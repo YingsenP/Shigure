@@ -48,13 +48,13 @@ verified_at: "2026-08-10"
 当前主色块分配总顺序是：
 
 ```text
-states → auras → spells → group
+states → auras → spells → items → group
 ```
 
 其中 `states` 的现代分类顺序是：
 
 ```text
-状态 → 能量 → 物品 → 配置开关 → 目标 → 焦点
+状态 → 能量 → 配置开关 → 目标 → 焦点 → 鼠标 → 宠物 → 首领1…首领5
 ```
 
 这份契约规定转换器必须跟随当前 `LoadPlayerBlocks`，而不是跟随旧文档中的简化顺序。
@@ -80,9 +80,10 @@ states → auras → spells → group
 
 | 区域 | 主要字段 | 作用 |
 |---|---|---|
-| `states` | 分类数组或兼容的平面数组 | 普通状态、能量、物品、开关、目标和焦点字段 |
+| `states` | 分类数组或兼容的平面数组 | 普通状态、能量、开关和单位字段 |
 | `auras` | player、target harmful/helpful、focus harmful/helpful | 按 spell ID 创建光环像素槽，可选层数条 |
 | `spells` | `spellId`、charge、maxCharge、castCount 等 | 冷却、充能回充以及派生 CountBars |
+| `items` | `[itemId] = { name, isEquipped }` | 背包物品或已装备物品的冷却状态 |
 | `group` | `num`、生命值/职责/驱散偏移、成员光环 | 从 `start` 起按成员步长布局最多 30 个单位 |
 
 只有当前玩家职业的 Lua 文件会实际写入 `Fuyutsui.ClassBlocks`。
@@ -105,11 +106,12 @@ states → auras → spells → group
 ### Fuyutsui 运行时分配
 
 1. `LoadPlayerBlocks(specIndex)` 从索引 1 开始创建新的 `blocks`。
-2. `states` 按现代分类固定顺序展开；状态/能量/物品/配置开关使用裸名称，目标和焦点使用分类前缀形成运行时 key。
+2. `states` 按现代分类固定顺序展开；状态/能量/配置开关使用裸名称，单位分类使用分类前缀形成运行时 key。
 3. `auras` 依次展开 player、target harmful、target helpful、focus harmful、focus helpful。条目必须有 `spellId` 或 `spellIds`，否则被跳过并提示。
 4. `spells` 按数组顺序展开：普通条目占一格；`charge=true` 占冷却和充能回充两格。`maxCharge` 与正数 `castCount` 额外生成 CountBars 定义，但不占主行新字段。
-5. 若存在 `group`，记录当前索引为 `groups.start`，成员像素按 `start + (memberIndex - 1) * num + offset` 计算。
-6. 替换 `self.blocks` 后释放旧单位、队伍及特定光环容器，后续刷新按新布局重建。
+5. `items` 按 `itemId` 升序展开，每项占一格，同时写入 `blocks.state[name]` 与 `blocks.items[itemId]`。
+6. 若存在 `group`，记录当前索引为 `groups.start`，成员像素按 `start + (memberIndex - 1) * num + offset` 计算。
+7. 替换 `self.blocks` 后释放旧单位、队伍及特定光环容器，后续刷新按新布局重建。
 
 ### Shigure 生成与消费
 

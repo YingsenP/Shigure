@@ -56,7 +56,7 @@ verified_at: "2026-08-09"
 
 | 术语 | 当前含义 | 常见误解 |
 |---|---|---|
-| `Fuyutsui.ClassBlocks` | `class/*.lua` 按专精声明的 `states/auras/spells/group` 数据 | 不是运行时最终索引，也不是 Shigure JSON |
+| `Fuyutsui.ClassBlocks` | `class/*.lua` 按专精声明的 `states/auras/spells/items/group` 数据 | 不是运行时最终索引，也不是 Shigure JSON |
 | `Fuyutsui.blocks` | `LoadPlayerBlocks` 根据当前专精生成的运行时索引映射 | 不是所有职业的静态配置 |
 | 主色块行 | 屏幕顶部最多 510 个 RGB 编码格 | 业务字段的绝对索引并非跨专精固定 |
 | CountBars | 与主色块索引独立的横向计数条，用于充能、施法次数和光环层数 | 不是主色块的第二段索引 |
@@ -91,7 +91,7 @@ verified_at: "2026-08-09"
 | 输入关键词或现象 | 输出层 | 阅读顺序 |
 |---|---|---|
 | `510`、RGB、错位、CountBars、治疗吸收 | 像素传输 | [[40-跨项目/01-Shigure-像素生产消费契约|像素契约]] → 生产端/消费端功能页 |
-| `states/auras/spells/group`、职业 Lua、step | 配置生成 | [[40-跨项目/02-Shigure-ClassBlocks到config同步契约|ClassBlocks 同步契约]] → [[50-参考资料/TEXTURE_LAYOUT_zh-CN|索引布局]] |
+| `states/auras/spells/items/group`、职业 Lua、step | 配置生成 | [[40-跨项目/02-Shigure-ClassBlocks到config同步契约|ClassBlocks 同步契约]] → [[50-参考资料/TEXTURE_LAYOUT_zh-CN|索引布局]] |
 | 条件不命中、动态单位、公式 | 规则决策 | [[30-Shigure/06-Shigure-规则条件与特殊动作|规则条件]] → [[30-Shigure/07-Shigure-动态单位数量与公式|动态字段]] |
 | 技能有映射但不发键、单位编号不对 | 热键执行 | [[40-跨项目/03-Shigure-ClassMacros到keymap与按键契约|宏到热键契约]] → [[30-Shigure/08-Shigure-Keymap解析与按键发送|Keymap 与发送]] |
 | 切专精后字段错、编辑器保存后不同步 | 生成/重载 | ClassBlocks 或 ClassMacros 契约 → [[30-Shigure/09-Shigure-Fuyutsui配置宏编辑与同步|Lua 编辑与同步]] |

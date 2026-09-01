@@ -84,7 +84,6 @@ end
 local bareKeyCategories = {
     ["状态"] = true,
     ["能量"] = true,
-    ["物品"] = true,
     ["配置开关"] = true,
 }
 
@@ -98,6 +97,15 @@ local function GetConfigPixel(self, key)
     return c and (c[key] / 255) or 0
 end
 
+local function GetSpellCooldownPixel(spellID, curve)
+    local cooldown = C_Spell.GetSpellCooldownDuration(spellID)
+    if not cooldown then return 0 end
+    local color = cooldown:EvaluateRemainingDuration(curve)
+    ---@diagnostic disable-next-line: param-type-mismatch
+    local _, _, b = color:GetRGB()
+    return b
+end
+
 -- stateBlockGetters[分类][名称]
 local stateBlockGetters = {
     ["状态"] = {
@@ -109,6 +117,7 @@ local stateBlockGetters = {
         ["生命值"] = function() return state.healthPercent or 0 end,
         ["一键辅助"] = function() return state.assistantSpell or 0 end,
         ["插入法术"] = function() return state.insertSpell or 0 end,
+        ["插入物品"] = function() return state.insertItem or 0 end,
         ["队伍类型"] = function() return state.groupType or 0 end,
         ["队伍人数"] = function() return state.groupCount or 0 end,
         ["首领战"] = function() return state.bossID or 0 end,
@@ -130,6 +139,7 @@ local stateBlockGetters = {
         ["天启骑士数量"] = function() return state.knightCount or 0 end,
         ["自律"] = function() return state.forbearance or 0 end,
         ["上个技能"] = function() return state.PreviousSkill or 0 end,
+        ["公共冷却"] = function(self) return GetSpellCooldownPixel(61304, self.curveMs) end,
 
         ["爆发开关"] = function(self) return GetConfigPixel(self, "cooldowns") end,
         ["AOE开关"] = function(self) return GetConfigPixel(self, "aoeMode") end,
@@ -197,7 +207,6 @@ local stateBlockGetters = {
         ["符文"] = function() return GetRunePixel() end,
         ["增压层数"] = function() return state.chargedComboPoints or 0 end,
     },
-    ["物品"] = {},
     ["配置开关"] = {
         ["爆发开关"] = function(self) return GetConfigPixel(self, "cooldowns") end,
         ["AOE开关"] = function(self) return GetConfigPixel(self, "aoeMode") end,
@@ -310,7 +319,7 @@ function Fuyutsui:UpdateStateBlock(category, name)
     end
 end
 
---- 同一名称可能落在 状态 / 能量 / 物品 / 配置开关；无对应索引时会直接跳过
+--- 同一名称可能落在 状态 / 能量 / 配置开关；无对应索引时会直接跳过
 function Fuyutsui:UpdateBareStateBlock(name, categories)
     for i = 1, #categories do
         self:UpdateStateBlock(categories[i], name)

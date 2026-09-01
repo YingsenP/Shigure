@@ -24,6 +24,11 @@ public sealed class GameState
             ? displayTypes
             : new Dictionary<string, string>();
 
+    public IReadOnlyDictionary<string, long> ItemIds =>
+        Values.TryGetValue("$itemIds", out var value) && value is IReadOnlyDictionary<string, long> itemIds
+            ? itemIds
+            : new Dictionary<string, long>();
+
     public IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>> Group =>
         Values.TryGetValue("group", out var value) && value is IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>> group
             ? group

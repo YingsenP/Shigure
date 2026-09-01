@@ -14,6 +14,7 @@ local state = Fuyutsui.state
 
 local spells = {}
 local insertSpellTimer, insertSpellIndex = nil, nil
+local insertItemTimer, insertItemIndex, insertItemId = nil, nil, nil
 
 local ColorValue255 = CreateColor(0, 0, 1, 1)
 
@@ -101,6 +102,48 @@ function Fuyutsui:UpdateInsertSpellBySuccess(spellID)
     local info = self.spellsList and self.spellsList[spellID]
     if not info or info.index ~= insertSpellIndex then return end
     self:ClearInsertSpell()
+end
+
+function Fuyutsui:ClearInsertItem()
+    if insertItemTimer then
+        insertItemTimer:Cancel()
+        insertItemTimer = nil
+    end
+    insertItemIndex = nil
+    insertItemId = nil
+    state.insertItem = 0
+    self:UpdateStateBlock("状态", "插入物品")
+end
+
+--- index: itemsList 中的本地序号；itemName/itemId 仅用于提示
+function Fuyutsui:SetInsertItem(index, itemName, itemId)
+    if insertItemTimer then
+        insertItemTimer:Cancel()
+        insertItemTimer = nil
+    end
+    insertItemIndex = index
+    insertItemId = itemId
+    state.insertItem = index / 255
+    self:UpdateStateBlock("状态", "插入物品")
+    local msg = "|cff00ff00[Fuyutsui]|r 插入物品: |cff00ff00" .. (itemName or "?") .. "|r"
+        .. "（itemId: " .. (itemId or "?") .. "，序号: " .. index .. "）"
+    print(msg)
+    insertItemTimer = C_Timer.NewTimer(1.5, function()
+        insertItemTimer = nil
+        insertItemIndex = nil
+        insertItemId = nil
+        state.insertItem = 0
+        Fuyutsui:UpdateStateBlock("状态", "插入物品")
+    end)
+end
+
+function Fuyutsui:UpdateInsertItemBySuccess(spellID)
+    if not insertItemId then return end
+    local getItemSpell = C_Item and C_Item.GetItemSpell
+    if not getItemSpell then return end
+    local itemSpellID = select(2, getItemSpell(insertItemId))
+    if not itemSpellID or itemSpellID ~= spellID then return end
+    self:ClearInsertItem()
 end
 
 local dispelAbilities = {
@@ -273,9 +316,15 @@ function Fuyutsui:UpdateSpellCooldown()
     end
 end
 
-function Fuyutsui:GetItemRemainingTime(itemID)
-    local itemCount = itemID and C_Item.GetItemCount(itemID)
-    if not itemCount or itemCount <= 0 then
+function Fuyutsui:GetItemRemainingTime(itemID, isEquipped)
+    local itemExists
+    if isEquipped then
+        itemExists = itemID and C_Item.IsEquippedItem(itemID)
+    else
+        local itemCount = itemID and C_Item.GetItemCount(itemID)
+        itemExists = itemCount and itemCount > 0
+    end
+    if not itemExists then
         return 255
     end
     local startTimeSeconds, durationSeconds, enableCooldownTimer = C_Item.GetItemCooldown(itemID)
@@ -295,6 +344,6 @@ function Fuyutsui:UpdateItemCooldown()
     local items = self.blocks and self.blocks.items
     if not items then return end
     for itemID, info in pairs(items) do
-        self:CreateTexture(info.index, self:GetItemRemainingTime(itemID) / 255)
+        self:CreateTexture(info.index, self:GetItemRemainingTime(itemID, info.isEquipped) / 255)
     end
 end

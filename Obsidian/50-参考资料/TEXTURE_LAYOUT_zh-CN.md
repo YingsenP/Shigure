@@ -1,6 +1,6 @@
 ---
 title: "Fuyutsui 纹理排序说明"
-summary: "说明 ClassBlocks 如何依次分配状态、光环、法术和队伍像素，以及辅助条如何独立布局。"
+summary: "说明 ClassBlocks 如何依次分配状态、光环、法术、物品和队伍像素，以及辅助条如何独立布局。"
 aliases:
   - "纹理排序说明"
 tags:
@@ -81,7 +81,7 @@ flowchart TB
 `LoadPlayerBlocks` 从索引 **1** 起连续分配，顺序固定为：
 
 ```text
-states → auras → spells → group
+states → auras → spells → items → group
 ```
 
 没有空隙：上一段用完后，下一段紧接着递增。不同专精声明的条目数量不同，因此 **同一语义在不同职业/专精上的绝对索引可能不同**；外部程序应按「当前专精表顺序」解读，或按名称 / `spellId` 映射，而不是写死固定格位。
@@ -90,7 +90,8 @@ states → auras → spells → group
 flowchart LR
   States["states 连续占位"] --> Auras["auras 连续占位"]
   Auras --> Spells["spells 连续占位"]
-  Spells --> Group["group.start = 下一位"]
+  Spells --> Items["items 按 itemId 升序占位"]
+  Items --> Group["group.start = 下一位"]
 ```
 
 ---
@@ -145,6 +146,17 @@ states = {
 ```
 
 若表中 **没有** `"状态"` / `"目标"` / `"焦点"` 键，则按 `ipairs` 顺序写入 `blocks.state[名称] = index`。新职业表请用分类写法。
+
+### 3.3 `items`：独立物品像素
+
+```lua
+items = {
+    [5512] = { name = "治疗石", isEquipped = false },
+    [123456] = { name = "饰品名称", isEquipped = true },
+}
+```
+
+物品不属于 `states` 分类。运行时在全部法术槽之后按 `itemId` 升序分配，每项同时写入 `blocks.state[name]` 和 `blocks.items[itemId]`；`isEquipped=true` 使用装备检查，否则使用背包数量检查。
 
 ---
 

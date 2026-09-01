@@ -13,6 +13,7 @@ Fuyutsui.ClassBlocks = {
                 "有效性",
                 "一键辅助",
                 "插入法术",
+                "插入物品",
                 "战斗时间",
                 "移动",
                 "施法(正计时)",
@@ -33,9 +34,6 @@ Fuyutsui.ClassBlocks = {
             ["能量"] = {
                 "法力值",
                 "神圣能量",
-            },
-            ["物品"] = {
-                [241304] = "治疗药水",
             },
             ["配置开关"] = {
                 "爆发开关",
@@ -114,6 +112,9 @@ Fuyutsui.ClassBlocks = {
             { spellId = 432459, name = "神圣壁垒", charge = true, maxCharge = 2 },
             { spellId = 391054, name = "代祷" },
         },
+        items = {
+            [241304] = { name = "治疗药水", isEquipped = false },
+        },
         group = {
             num = 6,
             healthPercent = 1,
@@ -136,6 +137,7 @@ Fuyutsui.ClassBlocks = {
                 "有效性",
                 "一键辅助",
                 "插入法术",
+                "插入物品",
                 "战斗时间",
                 "移动",
                 "施法(正计时)",
@@ -153,12 +155,6 @@ Fuyutsui.ClassBlocks = {
             ["能量"] = {
                 "法力值",
                 "神圣能量",
-            },
-            ["物品"] = {
-                [5512] = "治疗石",
-                [241288] = "鲁莽药水",
-                [241304] = "治疗药水",
-                [241308] = "圣光潜力",
             },
             ["配置开关"] = {
                 "延迟",
@@ -230,6 +226,12 @@ Fuyutsui.ClassBlocks = {
             { spellId = 633, name = "圣疗术" },
             { spellId = 24275, name = "愤怒之锤" },
         },
+        items = {
+            [5512] = { name = "治疗石", isEquipped = false },
+            [241288] = { name = "鲁莽药水", isEquipped = false },
+            [241304] = { name = "治疗药水", isEquipped = false },
+            [241308] = { name = "圣光潜力", isEquipped = false },
+        },
         group = {
             num = 3,
             healthPercent = 1,
@@ -247,6 +249,7 @@ Fuyutsui.ClassBlocks = {
                 "有效性",
                 "一键辅助",
                 "插入法术",
+                "插入物品",
                 "战斗时间",
                 "移动",
                 "施法(正计时)",
@@ -264,9 +267,6 @@ Fuyutsui.ClassBlocks = {
             ["能量"] = {
                 "法力值",
                 "神圣能量",
-            },
-            ["物品"] = {
-                [241304] = "治疗药水",
             },
             ["配置开关"] = {
                 "爆发开关",
@@ -317,6 +317,9 @@ Fuyutsui.ClassBlocks = {
             { spellId = 343527, name = "处决宣判" },
             { spellId = 255937, name = "灰烬觉醒" },
             { spellId = 31884, name = "复仇之怒" },
+        },
+        items = {
+            [241304] = { name = "治疗药水", isEquipped = false },
         },
         group = {
             num = 3,
@@ -410,4 +413,25 @@ Fuyutsui.spellsList = {
     [368970]  = { index = 253, name = "扫尾" },
     [357214]  = { index = 254, name = "翼击" },
     [436344]  = { index = 255, name = "艾泽里特涌动" },
+}
+
+Fuyutsui.itemsList = {
+    [241288] = { index = 1, name = "鲁莽药水" },
+    [241289] = { index = 2, name = "鲁莽药水" },
+    [241300] = { index = 3, name = "光注法力药水" },
+    [241301] = { index = 4, name = "光注法力药水" },
+    [241304] = { index = 5, name = "银月城生命药水" },
+    [241305] = { index = 6, name = "银月城生命药水" },
+    [241308] = { index = 7, name = "圣光潜力" },
+    [241309] = { index = 8, name = "圣光潜力" },
+    [245897] = { index = 9, name = "飞逝圣光潜力" },
+    [245898] = { index = 10, name = "飞逝圣光潜力" },
+    [245902] = { index = 11, name = "飞逝鲁莽药水" },
+    [245903] = { index = 12, name = "飞逝鲁莽药水" },
+    [245916] = { index = 13, name = "飞逝光注法力药水" },
+    [245917] = { index = 14, name = "飞逝光注法力药水" },
+    [245918] = { index = 15, name = "飞逝银月城生命药水" },
+    [245919] = { index = 16, name = "飞逝银月城生命药水" },
+    [271883] = { index = 17, name = "浓缩银月城生命药水" },
+    [271884] = { index = 18, name = "浓缩银月城生命药水" },
 }

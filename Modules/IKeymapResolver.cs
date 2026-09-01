@@ -12,7 +12,13 @@ public interface IKeymapResolver
 
     IReadOnlyDictionary<int, long> GetCurrentOneKeySpells();
 
+    IReadOnlyDictionary<int, long> GetCurrentInsertItems();
+
     IReadOnlyDictionary<long, int> GetCurrentSpellIndices();
 
     IReadOnlyDictionary<long, string> GetCurrentSpellNames();
+
+    IReadOnlyDictionary<long, int> GetCurrentItemIndices();
+
+    IReadOnlyDictionary<long, string> GetCurrentItemNames();
 }

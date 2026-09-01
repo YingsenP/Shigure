@@ -162,6 +162,9 @@ public sealed class ConfigService
     public IReadOnlyDictionary<int, long> GetOneKeySpells(int? classId)
         => GetClassSpellMap(classId, ModuleSpecialActions.OneKeySpell);
 
+    public IReadOnlyDictionary<int, long> GetInsertItems(int? classId)
+        => GetClassSpellMap(classId, ModuleSpecialActions.OneKeyItem);
+
     private IReadOnlyDictionary<int, long> GetClassSpellMap(int? classId, string configKey)
     {
         if (classId is null

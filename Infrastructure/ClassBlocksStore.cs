@@ -6,18 +6,18 @@ using static Shigure.LuaLiteParser;
 namespace Shigure;
 
 /// <summary>
-/// 读写 Fuyutsui class/*.lua 中的 ClassBlocks（states/auras/spells/group），
-/// 同时读写 spellsList；保存时替换 ClassBlocks 表字面量，并原位更新 spellsList 中已编辑的条目。
+/// 读写 Fuyutsui class/*.lua 中的 ClassBlocks（states/auras/spells/items/group），
+/// 同时读写 spellsList 与 itemsList；保存时替换 ClassBlocks 表字面量，并原位更新列表条目。
 /// </summary>
 internal static class ClassBlocksStore
 {
     public const string AssignmentName = "Fuyutsui.ClassBlocks";
     public const string SpellsListAssignmentName = "Fuyutsui.spellsList";
+    public const string ItemsListAssignmentName = "Fuyutsui.itemsList";
     private static readonly string[] StateCategories =
     [
         ClassStateCatalog.CategoryState,
         ClassStateCatalog.CategoryResource,
-        ClassStateCatalog.CategoryItem,
         ClassStateCatalog.CategoryConfig,
         ClassStateCatalog.CategoryTarget,
         ClassStateCatalog.CategoryFocus,
@@ -39,6 +39,8 @@ internal static class ClassBlocksStore
         public Dictionary<int, SpecBlocks> Specs { get; set; } = new();
         public List<SpellsListEntry> SpellsList { get; set; } = new();
         public HashSet<long> DeletedSpellsListOriginalIds { get; } = new();
+        public List<ItemsListEntry> ItemsList { get; set; } = new();
+        public HashSet<long> DeletedItemsListOriginalIds { get; } = new();
         public bool IsModernFormat { get; set; }
     }
 
@@ -52,6 +54,16 @@ internal static class ClassBlocksStore
         public string OriginalName { get; set; } = string.Empty;
     }
 
+    public sealed class ItemsListEntry
+    {
+        public long ItemId { get; set; }
+        public int Index { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public long OriginalItemId { get; set; }
+        public int OriginalIndex { get; set; }
+        public string OriginalName { get; set; } = string.Empty;
+    }
+
     public sealed class SpecBlocks
     {
         public bool NestedStates { get; set; } = true;
@@ -60,7 +72,6 @@ internal static class ClassBlocksStore
         {
             [ClassStateCatalog.CategoryState] = new List<string>(),
             [ClassStateCatalog.CategoryResource] = new List<string>(),
-            [ClassStateCatalog.CategoryItem] = new List<string>(),
             [ClassStateCatalog.CategoryConfig] = new List<string>(),
             [ClassStateCatalog.CategoryTarget] = new List<string>(),
             [ClassStateCatalog.CategoryFocus] = new List<string>(),
@@ -142,6 +153,7 @@ internal static class ClassBlocksStore
         }
 
         var spellsList = ParseSpellsList(ExtractAssignedTable(source, SpellsListAssignmentName));
+        var itemsList = ParseItemsList(ExtractAssignedTable(source, ItemsListAssignmentName));
         return new ClassFileDocument
         {
             FilePath = filePath,
@@ -150,6 +162,7 @@ internal static class ClassBlocksStore
             TableEndExclusive = end,
             Specs = specs,
             SpellsList = spellsList,
+            ItemsList = itemsList,
             IsModernFormat = modern
         };
     }
@@ -194,6 +207,79 @@ internal static class ClassBlocksStore
         return result;
     }
 
+    private static List<ItemsListEntry> ParseItemsList(TableValue? table)
+    {
+        var result = new List<ItemsListEntry>();
+        if (table is null)
+        {
+            return result;
+        }
+
+        foreach (var (key, value) in table.Entries)
+        {
+            if (key is not long itemId || itemId <= 0)
+            {
+                continue;
+            }
+
+            int index = 0;
+            string? name = null;
+            switch (value)
+            {
+                case StringValue text:
+                    name = text.Value.Trim();
+                    break;
+                case TableValue item:
+                    name = item.GetString("name")?.Trim();
+                    var indexValue = item.GetNumber("index");
+                    if (indexValue is { } number
+                        && number > 0
+                        && number <= int.MaxValue
+                        && number == Math.Truncate(number))
+                    {
+                        index = (int)number;
+                    }
+
+                    break;
+            }
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                continue;
+            }
+
+            result.Add(new ItemsListEntry
+            {
+                ItemId = itemId,
+                Index = index,
+                Name = name,
+                OriginalItemId = itemId,
+                OriginalIndex = index,
+                OriginalName = name
+            });
+        }
+
+        AssignMissingItemsListIndices(result);
+        return result;
+    }
+
+    private static void AssignMissingItemsListIndices(List<ItemsListEntry> entries)
+    {
+        var used = entries.Where(entry => entry.Index > 0).Select(entry => entry.Index).ToHashSet();
+        var next = 1;
+        foreach (var entry in entries.Where(entry => entry.Index <= 0))
+        {
+            while (used.Contains(next))
+            {
+                next++;
+            }
+
+            entry.Index = next;
+            used.Add(next);
+            next++;
+        }
+    }
+
     public static void Save(ClassFileDocument document)
     {
         if (!document.IsModernFormat)
@@ -205,6 +291,10 @@ internal static class ClassBlocksStore
             document.SourceText,
             document.SpellsList,
             document.DeletedSpellsListOriginalIds);
+        updated = UpdateItemsListEntries(
+            updated,
+            document.ItemsList,
+            document.DeletedItemsListOriginalIds);
         if (!TryExtractAssignedTable(updated, AssignmentName, out _, out var classBlocksStart, out var classBlocksEnd))
         {
             throw new InvalidOperationException("保存前无法重新定位 ClassBlocks 表。");
@@ -232,12 +322,21 @@ internal static class ClassBlocksStore
         }
 
         document.DeletedSpellsListOriginalIds.Clear();
+        foreach (var item in document.ItemsList)
+        {
+            item.OriginalItemId = item.ItemId;
+            item.OriginalIndex = item.Index;
+            item.OriginalName = item.Name;
+        }
+
+        document.DeletedItemsListOriginalIds.Clear();
     }
 
     public sealed class ItemEntry
     {
         public long? ItemId { get; set; }
         public string Name { get; set; } = string.Empty;
+        public bool IsEquipped { get; set; }
     }
 
     private static string UpdateSpellsListEntries(
@@ -347,6 +446,77 @@ internal static class ClassBlocksStore
         return source[..tableStart] + updatedTable + source[tableEnd..];
     }
 
+    private static string UpdateItemsListEntries(
+        string source,
+        IReadOnlyList<ItemsListEntry> entries,
+        IReadOnlySet<long> deletedOriginalIds)
+    {
+        var newline = source.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+        if (!TryExtractAssignedTable(source, ItemsListAssignmentName, out _, out var tableStart, out var tableEnd))
+        {
+            if (!TryExtractAssignedTable(source, SpellsListAssignmentName, out _, out _, out var spellsEnd))
+            {
+                throw new InvalidOperationException(
+                    $"当前文件中未找到 {SpellsListAssignmentName}，无法写入物品列表。");
+            }
+
+            return source[..spellsEnd]
+                + newline
+                + newline
+                + SerializeItemsListAssignment(entries, newline)
+                + source[spellsEnd..];
+        }
+
+        var newEntries = entries.Where(entry => entry.OriginalItemId == 0).ToArray();
+        var changedEntries = entries
+            .Where(entry => entry.OriginalItemId != 0
+                && (entry.ItemId != entry.OriginalItemId
+                    || entry.Index != entry.OriginalIndex
+                    || !string.Equals(entry.Name, entry.OriginalName, StringComparison.Ordinal)))
+            .ToDictionary(entry => entry.OriginalItemId);
+        var tableText = source[tableStart..tableEnd];
+        var usesIndexedObjectEntries = tableText.Contains("index =", StringComparison.Ordinal);
+        if (changedEntries.Count == 0
+            && newEntries.Length == 0
+            && deletedOriginalIds.Count == 0
+            && (entries.Count == 0 || usesIndexedObjectEntries))
+        {
+            return source;
+        }
+
+        return source[..tableStart]
+            + SerializeItemsListTableLiteral(entries, newline)
+            + source[tableEnd..];
+    }
+
+    private static string SerializeItemsListAssignment(IReadOnlyList<ItemsListEntry> entries, string newline)
+        => ItemsListAssignmentName + " = " + SerializeItemsListTableLiteral(entries, newline);
+
+    private static string SerializeItemsListTableLiteral(IReadOnlyList<ItemsListEntry> entries, string newline)
+    {
+        if (entries.Count == 0)
+        {
+            return "{}";
+        }
+
+        var builder = new StringBuilder();
+        builder.Append('{').Append(newline);
+        foreach (var entry in entries.OrderBy(item => item.Index).ThenBy(item => item.ItemId))
+        {
+            builder.Append("    [")
+                .Append(entry.ItemId.ToString(CultureInfo.InvariantCulture))
+                .Append("] = { index = ")
+                .Append(entry.Index.ToString(CultureInfo.InvariantCulture))
+                .Append(", name = \"")
+                .Append(EscapeLuaString(entry.Name, '"'))
+                .Append("\" },")
+                .Append(newline);
+        }
+
+        builder.Append('}');
+        return builder.ToString();
+    }
+
     private static string EscapeLuaString(string value, char quote)
     {
         var escaped = value
@@ -365,6 +535,7 @@ internal static class ClassBlocksStore
         isModern = spec.GetTable("states") is not null
             || spec.GetTable("auras") is not null
             || spec.GetTable("spells") is not null
+            || spec.GetTable("items") is not null
             || spec.GetTable("group") is not null;
 
         if (!isModern)
@@ -382,12 +553,6 @@ internal static class ClassBlocksStore
                 {
                     if (states.GetTable(category) is not { } list)
                     {
-                        continue;
-                    }
-
-                    if (string.Equals(category, ClassStateCatalog.CategoryItem, StringComparison.Ordinal))
-                    {
-                        AppendItems(list, result.Items);
                         continue;
                     }
 
@@ -467,6 +632,11 @@ internal static class ClassBlocksStore
             }
         }
 
+        if (spec.GetTable("items") is { } items)
+        {
+            AppendItems(items, result.Items);
+        }
+
         if (spec.GetTable("group") is { } group)
         {
             var groupBlocks = new GroupBlocks
@@ -521,34 +691,30 @@ internal static class ClassBlocksStore
 
     private static void AppendItems(TableValue list, List<ItemEntry> target)
     {
-        var arrayValues = list.IPairs().ToList();
         var seenIds = new HashSet<long>();
-        foreach (var item in arrayValues)
-        {
-            if (item is not StringValue nameValue || string.IsNullOrWhiteSpace(nameValue.Value))
-            {
-                continue;
-            }
-
-            var name = nameValue.Value.Trim();
-            long? itemId = ClassStateCatalog.TryGetLegacyItemId(name, out var knownId) ? knownId : null;
-            if (itemId is null || seenIds.Add(itemId.Value))
-            {
-                target.Add(new ItemEntry { ItemId = itemId, Name = name });
-            }
-        }
-
-        var arrayCount = arrayValues.Count;
         foreach (var (key, value) in list.Entries)
         {
-            if (key is not long itemId || itemId <= arrayCount
-                || value is not StringValue nameValue || string.IsNullOrWhiteSpace(nameValue.Value)
+            if (key is not long itemId
+                || itemId <= 0
+                || value is not TableValue itemTable
                 || !seenIds.Add(itemId))
             {
                 continue;
             }
 
-            target.Add(new ItemEntry { ItemId = itemId, Name = nameValue.Value.Trim() });
+            var name = itemTable.GetString("name")?.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                seenIds.Remove(itemId);
+                continue;
+            }
+
+            target.Add(new ItemEntry
+            {
+                ItemId = itemId,
+                Name = name,
+                IsEquipped = itemTable.GetBool("isEquipped") == true
+            });
         }
 
         target.Sort((left, right) => CompareItemIds(left.ItemId, right.ItemId));
@@ -627,29 +793,6 @@ internal static class ClassBlocksStore
         {
             foreach (var category in StateCategories)
             {
-                if (string.Equals(category, ClassStateCatalog.CategoryItem, StringComparison.Ordinal))
-                {
-                    if (spec.Items.Count == 0)
-                    {
-                        continue;
-                    }
-
-                    sb.Append(indent).Append("    [\"").Append(Escape(category)).AppendLine("\"] = {");
-                    foreach (var item in spec.Items.OrderBy(item => item.ItemId))
-                    {
-                        if (item.ItemId is not { } itemId || itemId <= 0 || string.IsNullOrWhiteSpace(item.Name))
-                        {
-                            throw new InvalidOperationException("物品配置包含无效的 itemId 或空名称。");
-                        }
-
-                        sb.Append(indent).Append("        [").Append(itemId).Append("] = \"")
-                            .Append(Escape(item.Name)).AppendLine("\",");
-                    }
-
-                    sb.Append(indent).AppendLine("    },");
-                    continue;
-                }
-
                 var list = spec.CategorizedStates.GetValueOrDefault(category);
                 if (list is null || list.Count == 0)
                 {
@@ -733,6 +876,25 @@ internal static class ClassBlocksStore
             sb.Append(indent).AppendLine("},");
         }
 
+        // items
+        if (spec.Items.Count > 0)
+        {
+            sb.Append(indent).AppendLine("items = {");
+            foreach (var item in spec.Items.OrderBy(item => item.ItemId))
+            {
+                if (item.ItemId is not { } itemId || itemId <= 0 || string.IsNullOrWhiteSpace(item.Name))
+                {
+                    throw new InvalidOperationException("物品配置包含无效的 itemId 或空名称。");
+                }
+
+                sb.Append(indent).Append("    [").Append(itemId).Append("] = { name = \"")
+                    .Append(Escape(item.Name)).Append("\", isEquipped = ")
+                    .Append(item.IsEquipped ? "true" : "false").AppendLine(" },");
+            }
+
+            sb.Append(indent).AppendLine("},");
+        }
+
         // group
         if (spec.Group is { } group)
         {
@@ -782,22 +944,24 @@ internal static class ClassBlocksStore
             return;
         }
 
-        if (!spec.NestedStates)
-        {
-            throw new InvalidOperationException("平面 states 无法保存 itemId 物品配置。");
-        }
-
         var ids = new HashSet<long>();
         var names = new HashSet<string>(StringComparer.Ordinal);
         var bareNames = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var category in new[]
-                 {
-                     ClassStateCatalog.CategoryState,
-                     ClassStateCatalog.CategoryResource,
-                     ClassStateCatalog.CategoryConfig
-                 })
+        if (spec.NestedStates)
         {
-            bareNames.UnionWith(spec.CategorizedStates.GetValueOrDefault(category) ?? []);
+            foreach (var category in new[]
+                     {
+                         ClassStateCatalog.CategoryState,
+                         ClassStateCatalog.CategoryResource,
+                         ClassStateCatalog.CategoryConfig
+                     })
+            {
+                bareNames.UnionWith(spec.CategorizedStates.GetValueOrDefault(category) ?? []);
+            }
+        }
+        else
+        {
+            bareNames.UnionWith(spec.FlatStates);
         }
 
         foreach (var item in spec.Items)

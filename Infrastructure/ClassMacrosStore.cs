@@ -10,6 +10,7 @@ namespace Shigure;
 internal static class ClassMacrosStore
 {
     public const string AssignmentName = "Fuyutsui.ClassMacros";
+    public const string MacroBodiesAssignmentName = "Fuyutsui.MacroBodies";
 
     private static readonly string[] ClassFileOrder =
     [
@@ -93,6 +94,34 @@ internal static class ClassMacrosStore
         }
 
         return doc;
+    }
+
+    public static IReadOnlyDictionary<string, string> LoadMacroBodies(string filePath)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!File.Exists(filePath))
+        {
+            return result;
+        }
+
+        var source = File.ReadAllText(filePath, Encoding.UTF8);
+        if (!TryExtractAssignedTable(source, MacroBodiesAssignmentName, out var table, out _, out _))
+        {
+            return result;
+        }
+
+        foreach (var (key, value) in table.Entries)
+        {
+            if (key is string name
+                && !string.IsNullOrWhiteSpace(name)
+                && value is StringValue text
+                && !string.IsNullOrWhiteSpace(text.Value))
+            {
+                result.TryAdd(name.Trim(), text.Value);
+            }
+        }
+
+        return result;
     }
 
     public static void Save(MacrosDocument document)
