@@ -21,6 +21,16 @@ internal static class ClassStateCatalog
     public const string CategoryBoss4 = "首领4";
     public const string CategoryBoss5 = "首领5";
 
+    private static readonly IReadOnlyDictionary<string, long> LegacyItemIds =
+        new Dictionary<string, long>(StringComparer.Ordinal)
+        {
+            ["治疗药水"] = 241304,
+            ["魔法药水"] = 241301,
+            ["治疗石"] = 5512,
+            ["鲁莽药水"] = 241288,
+            ["圣光潜力"] = 241308
+        };
+
     public static readonly string[] TopCategories =
     [
         CategoryState,
@@ -154,6 +164,9 @@ internal static class ClassStateCatalog
 
     public static string GetStorageCategory(string category)
         => category;
+
+    public static bool TryGetLegacyItemId(string name, out long itemId)
+        => LegacyItemIds.TryGetValue(name, out itemId);
 
     private static string[] GetNames(string category)
         => Categories.FirstOrDefault(item =>

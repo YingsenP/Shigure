@@ -288,10 +288,12 @@ internal sealed class ModuleDependencyService
 
     private static void ValidateSnapshot(ModuleDefinition module, ModuleDependencySnapshot snapshot)
     {
-        if (snapshot.SchemaVersion != ModuleDependencySnapshot.CurrentSchemaVersion)
+        if (snapshot.SchemaVersion is < 1 or > ModuleDependencySnapshot.CurrentSchemaVersion)
         {
             throw new InvalidDataException($"不支持依赖快照版本 {snapshot.SchemaVersion}。");
         }
+
+        UpgradeLegacyItems(snapshot);
 
         if (module.Match.ClassId != snapshot.ClassId || module.Match.SpecId != snapshot.SpecId)
         {
@@ -324,10 +326,55 @@ internal sealed class ModuleDependencyService
             throw new InvalidDataException("依赖快照包含缺少有效 spellId 的法术。");
         }
 
+        var items = snapshot.Config.Spec.Items ?? [];
+        var itemReservedNames = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var category in new[]
+                 {
+                     ClassStateCatalog.CategoryState,
+                     ClassStateCatalog.CategoryResource,
+                     ClassStateCatalog.CategoryConfig
+                 })
+        {
+            itemReservedNames.UnionWith(
+                snapshot.Config.Spec.CategorizedStates.GetValueOrDefault(category) ?? []);
+        }
+        if (items.Any(item => item.ItemId <= 0 || string.IsNullOrWhiteSpace(item.Name))
+            || items.Select(item => item.ItemId).Distinct().Count() != items.Count
+            || items.Select(item => item.Name).Distinct(StringComparer.Ordinal).Count() != items.Count
+            || items.Any(item => itemReservedNames.Contains(item.Name)))
+        {
+            throw new InvalidDataException("依赖快照包含无效或重复的物品 itemId/name。");
+        }
+
         if ((snapshot.Config.SpellsList ?? []).Any(spell => !IsValidSpellId(spell.SpellId)))
         {
             throw new InvalidDataException("依赖快照包含缺少有效 spellId 的技能列表条目。");
         }
+    }
+
+    private static void UpgradeLegacyItems(ModuleDependencySnapshot snapshot)
+    {
+        if (snapshot.SchemaVersion != 1)
+        {
+            return;
+        }
+
+        var spec = snapshot.Config.Spec;
+        spec.Items ??= [];
+        if (spec.CategorizedStates.TryGetValue(ClassStateCatalog.CategoryItem, out var legacyNames))
+        {
+            foreach (var name in legacyNames.ToArray())
+            {
+                if (ClassStateCatalog.TryGetLegacyItemId(name, out var itemId)
+                    && spec.Items.All(item => item.ItemId != itemId))
+                {
+                    spec.Items.Add(new ModuleItemSnapshot { ItemId = itemId, Name = name });
+                    legacyNames.Remove(name);
+                }
+            }
+        }
+
+        snapshot.SchemaVersion = ModuleDependencySnapshot.CurrentSchemaVersion;
     }
 
     private static List<RemovedStateField> RemoveUnknownStateFields(ModuleSpecSnapshot spec)
@@ -410,6 +457,10 @@ internal sealed class ModuleDependencyService
             pair => pair.Key,
             pair => new List<string>(pair.Value),
             StringComparer.Ordinal),
+        Items = spec.Items
+            .Where(item => item.ItemId is > 0 && !string.IsNullOrWhiteSpace(item.Name))
+            .Select(item => new ModuleItemSnapshot { ItemId = item.ItemId!.Value, Name = item.Name })
+            .ToList(),
         PlayerAuras = spec.PlayerAuras.Select(CaptureAura).ToList(),
         TargetHarmfulAuras = spec.TargetHarmfulAuras.Select(CaptureAura).ToList(),
         TargetHelpfulAuras = spec.TargetHelpfulAuras.Select(CaptureAura).ToList(),
@@ -466,6 +517,10 @@ internal sealed class ModuleDependencyService
             {
                 foreach (var category in StateCategories)
                 {
+                    if (string.Equals(category, ClassStateCatalog.CategoryItem, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
                     MergeStrings(local.CategorizedStates[category], incoming.CategorizedStates.GetValueOrDefault(category) ?? [], counters);
                 }
             }
@@ -480,6 +535,10 @@ internal sealed class ModuleDependencyService
             {
                 foreach (var category in StateCategories)
                 {
+                    if (string.Equals(category, ClassStateCatalog.CategoryItem, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
                     MergeStrings(local.FlatStates, incoming.CategorizedStates.GetValueOrDefault(category) ?? [], counters);
                 }
             }
@@ -487,6 +546,26 @@ internal sealed class ModuleDependencyService
             {
                 MergeStrings(local.FlatStates, incoming.FlatStates, counters);
             }
+        }
+
+
+        if (local.NestedStates)
+        {
+            var reservedNames = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var category in new[]
+                     {
+                         ClassStateCatalog.CategoryState,
+                         ClassStateCatalog.CategoryResource,
+                         ClassStateCatalog.CategoryConfig
+                     })
+            {
+                reservedNames.UnionWith(local.CategorizedStates.GetValueOrDefault(category) ?? []);
+            }
+            MergeItems(local.Items, incoming.Items ?? [], reservedNames, counters);
+        }
+        else if ((incoming.Items ?? []).Count > 0)
+        {
+            counters.Conflicts.Add("本地配置仍使用平面 states，无法导入 itemId 物品配置。");
         }
 
         MergeAuras(local.PlayerAuras, incoming.PlayerAuras, "玩家光环", counters);
@@ -713,6 +792,46 @@ internal sealed class ModuleDependencyService
             local.RemoveAt(index--);
             counters.ConfigUpdated++;
         }
+    }
+
+    private static void MergeItems(
+        List<ClassBlocksStore.ItemEntry> local,
+        IEnumerable<ModuleItemSnapshot> incoming,
+        IReadOnlySet<string> reservedNames,
+        MergeCounters counters)
+    {
+        foreach (var item in incoming.OrderBy(item => item.ItemId))
+        {
+            var byId = local.FirstOrDefault(existing => existing.ItemId == item.ItemId);
+            if (byId is not null)
+            {
+                if (!string.Equals(byId.Name, item.Name, StringComparison.Ordinal))
+                {
+                    counters.Conflicts.Add(
+                        $"物品 itemId {item.ItemId} 的名称不同：本地“{byId.Name}”、模块“{item.Name}”，已保留本地。");
+                }
+                continue;
+            }
+
+            var byName = local.FirstOrDefault(existing => string.Equals(existing.Name, item.Name, StringComparison.Ordinal));
+            if (byName is not null)
+            {
+                counters.Conflicts.Add(
+                    $"物品名称“{item.Name}”的 itemId 不同：本地 {byName.ItemId}、模块 {item.ItemId}，已保留本地。");
+                continue;
+            }
+
+            if (reservedNames.Contains(item.Name))
+            {
+                counters.Conflicts.Add($"物品名称“{item.Name}”与本地状态、能量或配置开关字段重名，已跳过。");
+                continue;
+            }
+
+            local.Add(new ClassBlocksStore.ItemEntry { ItemId = item.ItemId, Name = item.Name });
+            counters.ConfigAdded++;
+        }
+
+        local.Sort((left, right) => (left.ItemId ?? long.MaxValue).CompareTo(right.ItemId ?? long.MaxValue));
     }
 
     private static void MergeSpellMetadata(

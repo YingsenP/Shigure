@@ -3,7 +3,7 @@ namespace Shigure;
 /// <summary>随模块分发的职业配置与宏快照。</summary>
 public sealed class ModuleDependencySnapshot
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
     public int ClassId { get; set; }
@@ -38,6 +38,7 @@ public sealed class ModuleSpecSnapshot
     public bool NestedStates { get; set; } = true;
     public List<string> FlatStates { get; set; } = new();
     public Dictionary<string, List<string>> CategorizedStates { get; set; } = new(StringComparer.Ordinal);
+    public List<ModuleItemSnapshot> Items { get; set; } = new();
     public List<ModuleAuraSnapshot> PlayerAuras { get; set; } = new();
     public List<ModuleAuraSnapshot> TargetHarmfulAuras { get; set; } = new();
     public List<ModuleAuraSnapshot> TargetHelpfulAuras { get; set; } = new();
@@ -54,6 +55,7 @@ public sealed class ModuleSpecSnapshot
             pair => pair.Key,
             pair => new List<string>(pair.Value ?? []),
             StringComparer.Ordinal),
+        Items = (Items ?? []).Where(entry => entry is not null).Select(entry => entry.Clone()).ToList(),
         PlayerAuras = CloneEntries(PlayerAuras),
         TargetHarmfulAuras = CloneEntries(TargetHarmfulAuras),
         TargetHelpfulAuras = CloneEntries(TargetHelpfulAuras),
@@ -65,6 +67,14 @@ public sealed class ModuleSpecSnapshot
 
     private static List<ModuleAuraSnapshot> CloneEntries(IEnumerable<ModuleAuraSnapshot>? entries)
         => (entries ?? []).Where(entry => entry is not null).Select(entry => entry.Clone()).ToList();
+}
+
+public sealed class ModuleItemSnapshot
+{
+    public long ItemId { get; set; }
+    public string Name { get; set; } = string.Empty;
+
+    public ModuleItemSnapshot Clone() => (ModuleItemSnapshot)MemberwiseClone();
 }
 
 public sealed class ModuleAuraSnapshot

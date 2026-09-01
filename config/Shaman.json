@@ -197,7 +197,8 @@
     "治疗药水": {
       "step": 22,
       "type": "int",
-      "category": "物品"
+      "category": "物品",
+      "itemId": 241304
     },
     "爆发开关": {
       "step": 23,

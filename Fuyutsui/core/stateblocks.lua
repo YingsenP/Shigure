@@ -32,17 +32,6 @@ Fuyutsui.powerNameMap = {
     ["CHI"] = "真气",
 }
 
-local function GetItemCooldownPixel(self, countKey, itemID)
-    if not self.state[countKey] then
-        self:GetItemCount()
-    end
-    local remainingTime = self:GetItemRemainingTime(itemID)
-    if remainingTime and self.state[countKey] > 0 then
-        return math.min(1, remainingTime / 255)
-    end
-    return 1
-end
-
 --- mode: "cast" | "castElapsed" | "channel"
 function Fuyutsui:GetUnitCastPixel(unit, mode)
     local castCurve = self.castCurve
@@ -148,12 +137,6 @@ local stateBlockGetters = {
         ["爆发药水开关"] = function(self) return GetConfigPixel(self, "potion") end,
         ["延迟"] = function(self) return GetConfigPixel(self, "delay") end,
 
-        ["治疗药水"] = function(self) return GetItemCooldownPixel(self, "HealthPotionCount", 241304) end,
-        ["魔法药水"] = function(self) return GetItemCooldownPixel(self, "ManaPotionCount", 241301) end,
-        ["治疗石"] = function(self) return GetItemCooldownPixel(self, "HealthstoneCount", 5512) end,
-        ["鲁莽药水"] = function(self) return GetItemCooldownPixel(self, "RecklessnessCount", 241288) end,
-        ["圣光潜力"] = function(self) return GetItemCooldownPixel(self, "LightsPotentialCount", 241308) end,
-
         ["施法(正计时)"] = function(self) return self:GetUnitCastPixel("player", "castElapsed") end,
         ["施法(倒计时)"] = function(self) return self:GetUnitCastPixel("player", "cast") end,
         ["引导"] = function(self)
@@ -214,13 +197,7 @@ local stateBlockGetters = {
         ["符文"] = function() return GetRunePixel() end,
         ["增压层数"] = function() return state.chargedComboPoints or 0 end,
     },
-    ["物品"] = {
-        ["治疗药水"] = function(self) return GetItemCooldownPixel(self, "HealthPotionCount", 241304) end,
-        ["魔法药水"] = function(self) return GetItemCooldownPixel(self, "ManaPotionCount", 241301) end,
-        ["治疗石"] = function(self) return GetItemCooldownPixel(self, "HealthstoneCount", 5512) end,
-        ["鲁莽药水"] = function(self) return GetItemCooldownPixel(self, "RecklessnessCount", 241288) end,
-        ["圣光潜力"] = function(self) return GetItemCooldownPixel(self, "LightsPotentialCount", 241308) end,
-    },
+    ["物品"] = {},
     ["配置开关"] = {
         ["爆发开关"] = function(self) return GetConfigPixel(self, "cooldowns") end,
         ["AOE开关"] = function(self) return GetConfigPixel(self, "aoeMode") end,

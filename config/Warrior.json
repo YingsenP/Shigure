@@ -172,7 +172,8 @@
     "鲁莽药水": {
       "step": 20,
       "type": "int",
-      "category": "物品"
+      "category": "物品",
+      "itemId": 241288
     },
     "爆发开关": {
       "step": 21,

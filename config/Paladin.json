@@ -197,7 +197,8 @@
     "治疗药水": {
       "step": 26,
       "type": "int",
-      "category": "物品"
+      "category": "物品",
+      "itemId": 241304
     },
     "爆发开关": {
       "step": 27,
@@ -847,25 +848,29 @@
       "type": "int",
       "category": "能量"
     },
-    "治疗药水": {
+    "治疗石": {
       "step": 23,
       "type": "int",
-      "category": "物品"
-    },
-    "治疗石": {
-      "step": 24,
-      "type": "int",
-      "category": "物品"
+      "category": "物品",
+      "itemId": 5512
     },
     "鲁莽药水": {
+      "step": 24,
+      "type": "int",
+      "category": "物品",
+      "itemId": 241288
+    },
+    "治疗药水": {
       "step": 25,
       "type": "int",
-      "category": "物品"
+      "category": "物品",
+      "itemId": 241304
     },
     "圣光潜力": {
       "step": 26,
       "type": "int",
-      "category": "物品"
+      "category": "物品",
+      "itemId": 241308
     },
     "延迟": {
       "step": 27,
@@ -1449,7 +1454,8 @@
     "治疗药水": {
       "step": 24,
       "type": "int",
-      "category": "物品"
+      "category": "物品",
+      "itemId": 241304
     },
     "爆发开关": {
       "step": 25,

@@ -527,12 +527,14 @@
     "治疗石": {
       "step": 23,
       "type": "int",
-      "category": "物品"
+      "category": "物品",
+      "itemId": 5512
     },
     "治疗药水": {
       "step": 24,
       "type": "int",
-      "category": "物品"
+      "category": "物品",
+      "itemId": 241304
     },
     "目标类型": {
       "step": 25,

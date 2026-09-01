@@ -74,6 +74,7 @@ internal static class ClassBlocksStore
         };
 
         public List<AuraEntry> PlayerAuras { get; } = new();
+        public List<ItemEntry> Items { get; } = new();
         public List<AuraEntry> TargetHarmfulAuras { get; } = new();
         public List<AuraEntry> TargetHelpfulAuras { get; } = new();
         public List<AuraEntry> FocusHarmfulAuras { get; } = new();
@@ -233,6 +234,12 @@ internal static class ClassBlocksStore
         document.DeletedSpellsListOriginalIds.Clear();
     }
 
+    public sealed class ItemEntry
+    {
+        public long? ItemId { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+
     private static string UpdateSpellsListEntries(
         string source,
         IReadOnlyList<SpellsListEntry> entries,
@@ -378,6 +385,12 @@ internal static class ClassBlocksStore
                         continue;
                     }
 
+                    if (string.Equals(category, ClassStateCatalog.CategoryItem, StringComparison.Ordinal))
+                    {
+                        AppendItems(list, result.Items);
+                        continue;
+                    }
+
                     var target = result.CategorizedStates[category];
                     foreach (var item in list.IPairs())
                     {
@@ -506,6 +519,50 @@ internal static class ClassBlocksStore
         return result;
     }
 
+    private static void AppendItems(TableValue list, List<ItemEntry> target)
+    {
+        var arrayValues = list.IPairs().ToList();
+        var seenIds = new HashSet<long>();
+        foreach (var item in arrayValues)
+        {
+            if (item is not StringValue nameValue || string.IsNullOrWhiteSpace(nameValue.Value))
+            {
+                continue;
+            }
+
+            var name = nameValue.Value.Trim();
+            long? itemId = ClassStateCatalog.TryGetLegacyItemId(name, out var knownId) ? knownId : null;
+            if (itemId is null || seenIds.Add(itemId.Value))
+            {
+                target.Add(new ItemEntry { ItemId = itemId, Name = name });
+            }
+        }
+
+        var arrayCount = arrayValues.Count;
+        foreach (var (key, value) in list.Entries)
+        {
+            if (key is not long itemId || itemId <= arrayCount
+                || value is not StringValue nameValue || string.IsNullOrWhiteSpace(nameValue.Value)
+                || !seenIds.Add(itemId))
+            {
+                continue;
+            }
+
+            target.Add(new ItemEntry { ItemId = itemId, Name = nameValue.Value.Trim() });
+        }
+
+        target.Sort((left, right) => CompareItemIds(left.ItemId, right.ItemId));
+    }
+
+    private static int CompareItemIds(long? left, long? right)
+        => left switch
+        {
+            null when right is null => 0,
+            null => 1,
+            _ when right is null => -1,
+            _ => left.Value.CompareTo(right.Value)
+        };
+
     private static void AppendAuraList(TableValue? list, List<AuraEntry> target)
     {
         if (list is null)
@@ -562,12 +619,37 @@ internal static class ClassBlocksStore
 
     private static void WriteSpec(StringBuilder sb, SpecBlocks spec, string indent)
     {
+        ValidateItemsForSerialization(spec);
+
         // states
         sb.Append(indent).AppendLine("states = {");
         if (spec.NestedStates)
         {
             foreach (var category in StateCategories)
             {
+                if (string.Equals(category, ClassStateCatalog.CategoryItem, StringComparison.Ordinal))
+                {
+                    if (spec.Items.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    sb.Append(indent).Append("    [\"").Append(Escape(category)).AppendLine("\"] = {");
+                    foreach (var item in spec.Items.OrderBy(item => item.ItemId))
+                    {
+                        if (item.ItemId is not { } itemId || itemId <= 0 || string.IsNullOrWhiteSpace(item.Name))
+                        {
+                            throw new InvalidOperationException("物品配置包含无效的 itemId 或空名称。");
+                        }
+
+                        sb.Append(indent).Append("        [").Append(itemId).Append("] = \"")
+                            .Append(Escape(item.Name)).AppendLine("\",");
+                    }
+
+                    sb.Append(indent).AppendLine("    },");
+                    continue;
+                }
+
                 var list = spec.CategorizedStates.GetValueOrDefault(category);
                 if (list is null || list.Count == 0)
                 {
@@ -690,6 +772,55 @@ internal static class ClassBlocksStore
             }
 
             sb.Append(indent).AppendLine("},");
+        }
+    }
+
+    private static void ValidateItemsForSerialization(SpecBlocks spec)
+    {
+        if (spec.Items.Count == 0)
+        {
+            return;
+        }
+
+        if (!spec.NestedStates)
+        {
+            throw new InvalidOperationException("平面 states 无法保存 itemId 物品配置。");
+        }
+
+        var ids = new HashSet<long>();
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        var bareNames = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var category in new[]
+                 {
+                     ClassStateCatalog.CategoryState,
+                     ClassStateCatalog.CategoryResource,
+                     ClassStateCatalog.CategoryConfig
+                 })
+        {
+            bareNames.UnionWith(spec.CategorizedStates.GetValueOrDefault(category) ?? []);
+        }
+
+        foreach (var item in spec.Items)
+        {
+            if (item.ItemId is not { } itemId || itemId <= 0 || string.IsNullOrWhiteSpace(item.Name))
+            {
+                throw new InvalidOperationException("物品配置包含无效的 itemId 或空名称。");
+            }
+
+            if (!ids.Add(itemId))
+            {
+                throw new InvalidOperationException($"物品 itemId {itemId} 重复。");
+            }
+
+            if (!names.Add(item.Name))
+            {
+                throw new InvalidOperationException($"物品名称“{item.Name}”重复。");
+            }
+
+            if (bareNames.Contains(item.Name))
+            {
+                throw new InvalidOperationException($"物品名称“{item.Name}”与状态、能量或配置开关字段重名。");
+            }
         }
     }
 
