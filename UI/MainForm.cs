@@ -1242,7 +1242,7 @@ public sealed class MainForm : Form, IMessageFilter
         ConfigureSettingsCardRows(spellIconPackageCard, 32, 30, null, settingsActionButtonHeight);
         spellIconPackageCard.Controls.Add(CreateTitle("下载数据包"), 0, 0);
         spellIconPackageCard.Controls.Add(
-            CreateDescription("从 GitHub 下载或更新技能/物品图标数据包；不会随发布包自动附带"),
+            CreateDescription("从 GitHub Release 下载或更新技能/物品图标数据包；API 不可用时回退到发布页直链"),
             0,
             1);
 
@@ -1339,15 +1339,35 @@ public sealed class MainForm : Form, IMessageFilter
         {
             if (!_shutdownStarted)
             {
-                _spellIconPackageStatusLabel.Text = $"下载失败：{ex.Message}";
-                _settingsToolTip.SetToolTip(_spellIconPackageStatusLabel, ex.ToString());
+                var releaseUrl = SpellIconPackageDownloadService.ReleasesPageUrl;
+                var status = $"下载失败，请到 {releaseUrl} 手动下载 SpellIcons.shgpack。";
+                _spellIconPackageStatusLabel.Text = status;
+                _settingsToolTip.SetToolTip(
+                    _spellIconPackageStatusLabel,
+                    status + Environment.NewLine + Environment.NewLine + ex);
                 AppendLog($"技能/物品图标数据包下载失败: {ex.Message}");
-                MessageBox.Show(
+                var openPage = MessageBox.Show(
                     this,
-                    ex.Message,
+                    "自动下载失败。请到以下页面手动下载 SpellIcons.shgpack，放到程序目录的 data 文件夹："
+                    + Environment.NewLine
+                    + Environment.NewLine
+                    + releaseUrl
+                    + Environment.NewLine
+                    + Environment.NewLine
+                    + $"保存位置：{SpellIconCatalog.PackagePath}"
+                    + Environment.NewLine
+                    + Environment.NewLine
+                    + $"原因：{ex.Message}"
+                    + Environment.NewLine
+                    + Environment.NewLine
+                    + "是否现在打开下载页面？",
                     "下载数据包失败",
-                    MessageBoxButtons.OK,
+                    MessageBoxButtons.YesNo,
                     MessageBoxIcon.Warning);
+                if (openPage == DialogResult.Yes)
+                {
+                    OpenSpellIconReleasePage();
+                }
             }
         }
         finally
@@ -1405,6 +1425,30 @@ public sealed class MainForm : Form, IMessageFilter
             MessageBox.Show(
                 this,
                 $"无法打开模块网站：{ex.Message}",
+                "Shigure",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
+    }
+
+    private void OpenSpellIconReleasePage()
+    {
+        var releaseUrl = SpellIconPackageDownloadService.ReleasesPageUrl;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(releaseUrl)
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                this,
+                $"无法打开下载页面：{ex.Message}"
+                + Environment.NewLine
+                + Environment.NewLine
+                + releaseUrl,
                 "Shigure",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
