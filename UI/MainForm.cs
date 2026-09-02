@@ -1242,7 +1242,7 @@ public sealed class MainForm : Form, IMessageFilter
         ConfigureSettingsCardRows(spellIconPackageCard, 32, 30, null, settingsActionButtonHeight);
         spellIconPackageCard.Controls.Add(CreateTitle("下载数据包"), 0, 0);
         spellIconPackageCard.Controls.Add(
-            CreateDescription("从 GitHub 下载或更新技能/物品图标数据包；不会随发布包自动附带"),
+            CreateDescription("从 GitHub Release 下载或更新技能/物品图标数据包；API 不可用时回退到发布页直链"),
             0,
             1);
 
