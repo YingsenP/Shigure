@@ -276,95 +276,6 @@ function Fuyutsui:RefreshPlayerConfigStateBlocks()
     end
 end
 
-function Fuyutsui:UpdatePlayerStagger()
-    local unit = "player"
-    local damage = UnitStagger(unit)
-    local maxHealth = UnitHealthMax(unit)
-    if issecretvalue(damage) or issecretvalue(maxHealth) then
-        state.staggerPercent = 0
-        self:UpdateStateBlock("状态", "酒池")
-        return
-    end
-    local staggerPercent = damage / maxHealth * 100
-    state.staggerPercent = staggerPercent / 255 or 0
-    self:UpdateStateBlock("状态", "酒池")
-end
-
-local holyArmaments = {
-    [432459] = 1, -- 神圣壁垒
-    [432472] = 2, -- 圣洁武器
-}
-
-function Fuyutsui:UpdateHolyArmaments(spellID) -- 神圣军备
-    if not spellID or spellID ~= 375576 then return end
-    for spellId, index in pairs(holyArmaments) do
-        local overrideSpellID = C_Spell.GetOverrideSpell(375576)
-        if not overrideSpellID then return end
-        if overrideSpellID == spellId then
-            state.holyArmaments = index / 255 or 0
-            self:UpdateStateBlock("状态", "神圣军备")
-        end
-    end
-end
-
-function Fuyutsui:UpdateVampiricStrike(spellID) -- 吸血鬼打击
-    if spellID == 206930 or spellID == 55090 then
-        local overrideSpellID1 = C_Spell.GetOverrideSpell(206930)
-        local overrideSpellID2 = C_Spell.GetOverrideSpell(55090)
-
-        if overrideSpellID1 == 433895 or overrideSpellID2 == 433895 then
-            state.VampiricStrike = 1 / 255
-            self:UpdateStateBlock("状态", "吸血鬼打击")
-        else
-            state.VampiricStrike = 0
-            self:UpdateStateBlock("状态", "吸血鬼打击")
-        end
-    end
-end
-
-function Fuyutsui:UpdateReaverGlaive(spellID) -- 收割者战刃
-    if not spellID or spellID ~= 206930 then return end
-    local overrideSpellID = C_Spell.GetOverrideSpell(204157)
-
-    if overrideSpellID == 433895 then
-        state.reaverGlaive = 1 / 255
-        self:UpdateStateBlock("状态", "收割者战刃")
-    else
-        state.reaverGlaive = 0
-        self:UpdateStateBlock("状态", "收割者战刃")
-    end
-end
-
-local heroicStrikeTimer = nil
-
-function Fuyutsui:UpdateHeroicStrike(spellID) -- 英勇打击
-    if not spellID or spellID ~= 1464 then return end
-
-    if heroicStrikeTimer then
-        heroicStrikeTimer:Cancel()
-        heroicStrikeTimer = nil
-    end
-
-    local overrideSpellID = C_Spell.GetOverrideSpell(1464)
-    if overrideSpellID == 1269383 then
-        local remaining = 15
-        state.heroicStrike = remaining / 255
-        self:UpdateStateBlock("状态", "英勇打击")
-
-        heroicStrikeTimer = C_Timer.NewTicker(1, function()
-            remaining = remaining - 1
-            state.heroicStrike = remaining > 0 and (remaining / 255) or 0
-            self:UpdateStateBlock("状态", "英勇打击")
-            if remaining <= 0 then
-                heroicStrikeTimer = nil
-            end
-        end, 15)
-    else
-        state.heroicStrike = 0
-        self:UpdateStateBlock("状态", "英勇打击")
-    end
-end
-
 function Fuyutsui:UpdateRune()
     local total = 0
     for i = 1, 6 do
@@ -405,45 +316,6 @@ function Fuyutsui:RefreshDrinkStatus(spellID)
         state.drinkStatus = false
         self:RefreshPlayerValidity()
     end
-end
-
--- 死亡骑士天启骑士检测
-local ActiveKnightSpells = {
-    [454393] = 1,
-    [454389] = 2,
-    [454392] = 3,
-    [454390] = 4,
-}
-local InactiveKnightSpells = {
-    [444248] = 1,
-    [444251] = 2,
-    [444252] = 3,
-    [444254] = 4,
-}
-local ActiveKnights = { false, false, false, false }
-
-function Fuyutsui:RecordKnightSpellState(spellID)
-    if ActiveKnightSpells[spellID] then
-        ActiveKnights[ActiveKnightSpells[spellID]] = true
-    end
-    if InactiveKnightSpells[spellID] then
-        ActiveKnights[InactiveKnightSpells[spellID]] = false
-    end
-end
-
-local function GetActiveKnightsCount()
-    local count = 0
-    for i = 1, 4 do
-        if ActiveKnights[i] then
-            count = count + 1
-        end
-    end
-    return count
-end
-
-function Fuyutsui:RefreshActiveKnightCount()
-    state.knightCount = GetActiveKnightsCount() / 255
-    self:UpdateStateBlock("状态", "天启骑士数量")
 end
 
 function Fuyutsui:HookChatFrameEditBox()
@@ -498,6 +370,45 @@ function Fuyutsui:SetMountSpellCasting(spellID, isCasting)
     end
 end
 
+function Fuyutsui:PreviousSkill(spellId)
+    local spellIndex = spellsList[spellId] and spellsList[spellId].index or 0
+    state.PreviousSkill = spellIndex / 255 or 0
+    self:UpdateStateBlock("状态", "上个技能")
+end
+
+-- ============================ 职业特殊状态 ============================
+
+function Fuyutsui:UpdatePlayerStagger()
+    local unit = "player"
+    local damage = UnitStagger(unit)
+    local maxHealth = UnitHealthMax(unit)
+    if issecretvalue(damage) or issecretvalue(maxHealth) then
+        state.staggerPercent = 0
+        self:UpdateStateBlock("状态", "酒池")
+        return
+    end
+    local staggerPercent = damage / maxHealth * 100
+    state.staggerPercent = staggerPercent / 255 or 0
+    self:UpdateStateBlock("状态", "酒池")
+end
+
+local holyArmaments = {
+    [432459] = 1, -- 神圣壁垒
+    [432472] = 2, -- 圣洁武器
+}
+
+function Fuyutsui:UpdateHolyArmaments(spellID) -- 神圣军备
+    if not spellID or spellID ~= 375576 then return end
+    for spellId, index in pairs(holyArmaments) do
+        local overrideSpellID = C_Spell.GetOverrideSpell(375576)
+        if not overrideSpellID then return end
+        if overrideSpellID == spellId then
+            state.holyArmaments = index / 255 or 0
+            self:UpdateStateBlock("状态", "神圣军备")
+        end
+    end
+end
+
 local forbearanceTimer = nil
 
 function Fuyutsui:UpdatePlayerForbearance() -- 25771 自律
@@ -520,8 +431,123 @@ function Fuyutsui:UpdatePlayerForbearance() -- 25771 自律
     end, 30)
 end
 
-function Fuyutsui:PreviousSkill(spellId)
-    local spellIndex = spellsList[spellId] and spellsList[spellId].index or 0
-    state.PreviousSkill = spellIndex / 255 or 0
-    self:UpdateStateBlock("状态", "上个技能")
+function Fuyutsui:UpdateVampiricStrike(spellID) -- 吸血鬼打击
+    if spellID == 206930 or spellID == 55090 then
+        local overrideSpellID1 = C_Spell.GetOverrideSpell(206930)
+        local overrideSpellID2 = C_Spell.GetOverrideSpell(55090)
+
+        if overrideSpellID1 == 433895 or overrideSpellID2 == 433895 then
+            state.VampiricStrike = 1 / 255
+            self:UpdateStateBlock("状态", "吸血鬼打击")
+        else
+            state.VampiricStrike = 0
+            self:UpdateStateBlock("状态", "吸血鬼打击")
+        end
+    end
+end
+
+local boilingPointTimer = nil
+
+function Fuyutsui:UpdateBoilingPoint(spellID) -- 沸点
+    if spellID ~= 1265982 then return end
+
+    if boilingPointTimer then
+        boilingPointTimer:Cancel()
+        boilingPointTimer = nil
+    end
+
+    local remaining = 3
+    state.boilingPoint = remaining / 255
+    self:UpdateStateBlock("状态", "沸点")
+
+    boilingPointTimer = C_Timer.NewTicker(1, function()
+        remaining = remaining - 1
+        state.boilingPoint = remaining > 0 and (remaining / 255) or 0
+        self:UpdateStateBlock("状态", "沸点")
+        if remaining <= 0 then
+            boilingPointTimer = nil
+        end
+    end, 3)
+end
+
+-- 死亡骑士天启骑士检测
+local ActiveKnightSpells = {
+    [454393] = 1,
+    [454389] = 2,
+    [454392] = 3,
+    [454390] = 4,
+}
+local InactiveKnightSpells = {
+    [444248] = 1,
+    [444251] = 2,
+    [444252] = 3,
+    [444254] = 4,
+}
+local ActiveKnights = { false, false, false, false }
+
+function Fuyutsui:RecordKnightSpellState(spellID)
+    if ActiveKnightSpells[spellID] then
+        ActiveKnights[ActiveKnightSpells[spellID]] = true
+    end
+    if InactiveKnightSpells[spellID] then
+        ActiveKnights[InactiveKnightSpells[spellID]] = false
+    end
+end
+
+local function GetActiveKnightsCount()
+    local count = 0
+    for i = 1, 4 do
+        if ActiveKnights[i] then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+function Fuyutsui:RefreshActiveKnightCount()
+    state.knightCount = GetActiveKnightsCount() / 255
+    self:UpdateStateBlock("状态", "天启骑士数量")
+end
+
+function Fuyutsui:UpdateReaverGlaive(spellID) -- 收割者战刃
+    if not spellID or spellID ~= 206930 then return end
+    local overrideSpellID = C_Spell.GetOverrideSpell(204157)
+
+    if overrideSpellID == 433895 then
+        state.reaverGlaive = 1 / 255
+        self:UpdateStateBlock("状态", "收割者战刃")
+    else
+        state.reaverGlaive = 0
+        self:UpdateStateBlock("状态", "收割者战刃")
+    end
+end
+
+local heroicStrikeTimer = nil
+
+function Fuyutsui:UpdateHeroicStrike(spellID) -- 英勇打击
+    if not spellID or spellID ~= 1464 then return end
+
+    if heroicStrikeTimer then
+        heroicStrikeTimer:Cancel()
+        heroicStrikeTimer = nil
+    end
+
+    local overrideSpellID = C_Spell.GetOverrideSpell(1464)
+    if overrideSpellID == 1269383 then
+        local remaining = 15
+        state.heroicStrike = remaining / 255
+        self:UpdateStateBlock("状态", "英勇打击")
+
+        heroicStrikeTimer = C_Timer.NewTicker(1, function()
+            remaining = remaining - 1
+            state.heroicStrike = remaining > 0 and (remaining / 255) or 0
+            self:UpdateStateBlock("状态", "英勇打击")
+            if remaining <= 0 then
+                heroicStrikeTimer = nil
+            end
+        end, 15)
+    else
+        state.heroicStrike = 0
+        self:UpdateStateBlock("状态", "英勇打击")
+    end
 end

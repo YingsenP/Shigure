@@ -3,6 +3,7 @@ local format = string.format
 local macroList = {}
 local macroKind = {}
 local bindingOwner = CreateFrame("Frame")
+
 local modifiers = {
     "CTRL", "ALT", "SHIFT",
     "ALT-CTRL", "ALT-SHIFT", "CTRL-SHIFT",
@@ -15,8 +16,8 @@ local keys = {
     "NUMPADDECIMAL", "NUMPADPLUS", "NUMPADMINUS", "NUMPADMULTIPLY", "NUMPADDIVIDE",
     "F1", "F2", "F3", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
     ",", ".", "/", ";", "'", "[", "]", "\\",
-    "7", "8", "9", "0", "=",
-    "-", "INSERT", "DELETE", "HOME", "END", "PAGEUP", "PAGEDOWN",
+    "7", "8", "9", "0", "=", "-",
+    "INSERT", "DELETE", "HOME", "END", "PAGEUP", "PAGEDOWN",
     "UP", "DOWN", "LEFT", "RIGHT"
 }
 

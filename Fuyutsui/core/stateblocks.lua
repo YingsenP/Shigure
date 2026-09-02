@@ -138,6 +138,7 @@ local stateBlockGetters = {
         ["姿态"] = function() return state.shapeshiftFormID or 0 end,
         ["天启骑士数量"] = function() return state.knightCount or 0 end,
         ["自律"] = function() return state.forbearance or 0 end,
+        ["沸点"] = function() return state.boilingPoint or 0 end,
         ["上个技能"] = function() return state.PreviousSkill or 0 end,
         ["公共冷却"] = function(self) return GetSpellCooldownPixel(61304, self.curveMs) end,
 

@@ -1563,8 +1563,7 @@ public sealed class MainForm : Form, IMessageFilter
     private ClassModuleSaveResult SaveModulesForClass(int classId)
     {
         var modules = _moduleStore.GetModulesForDisplay()
-            .Where(module => module.Match.ClassId == classId
-                             && ModuleStore.HasCompatibleVersion(module))
+            .Where(module => module.Match.ClassId == classId)
             .ToList();
         var warnings = new List<string>();
         var errors = new List<string>();
