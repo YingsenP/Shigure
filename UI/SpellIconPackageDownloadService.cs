@@ -254,7 +254,7 @@ internal sealed class SpellIconPackageDownloadService : IDisposable
 
             if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone)
             {
-                var url = response.RequestUri?.ToString() ?? uri.ToString();
+                var url = response.RequestMessage?.RequestUri?.ToString() ?? uri.ToString();
                 throw new HttpRequestException(
                     $"检查数据包失败：HTTP {(int)response.StatusCode} {response.ReasonPhrase}（{url}）");
             }
@@ -461,7 +461,7 @@ internal sealed class SpellIconPackageDownloadService : IDisposable
 
         using (response)
         {
-            var url = response.RequestUri?.ToString() ?? string.Empty;
+            var url = response.RequestMessage?.RequestUri?.ToString() ?? string.Empty;
             throw new HttpRequestException(
                 $"{action}失败：HTTP {(int)response.StatusCode} {response.ReasonPhrase}（{url}）");
         }
