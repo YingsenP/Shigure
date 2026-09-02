@@ -8,6 +8,7 @@ internal static class ClassStateCatalog
 {
     public const string CategoryState = "状态";
     public const string CategoryPlayerDisplay = "玩家";
+    public const string CategorySpecial = "特殊";
     public const string CategoryConfig = "配置开关";
     public const string CategoryItem = "物品";
     public const string CategoryResource = "能量";
@@ -34,6 +35,7 @@ internal static class ClassStateCatalog
     public static readonly string[] TopCategories =
     [
         CategoryState,
+        CategorySpecial,
         CategoryResource,
         CategoryConfig,
         CategoryTarget,
@@ -56,7 +58,12 @@ internal static class ClassStateCatalog
             "首领战", "难度", "英雄天赋", "施法目标", "施法技能",
             "敌人数量", "敌人数-无仇恨", "敌人数-有仇恨",
             "施法(正计时)", "施法(倒计时)", "引导", "蓄力", "蓄力层数",
-            "酒池", "符文", "姿态", "神圣军备", "自律", "上个技能", "公共冷却", "英勇打击", "吸血鬼打击", "收割者战刃",
+            "上个技能", "公共冷却",
+        ]),
+        (CategorySpecial,
+        [
+            "酒池", "符文", "姿态", "神圣军备", "自律", "天启骑士数量",
+            "英勇打击", "吸血鬼打击", "收割者战刃", "沸点",
         ]),
         (CategoryConfig,
         [

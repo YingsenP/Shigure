@@ -53,19 +53,20 @@ function Fuyutsui:LoadPlayerBlocks(specIndex)
 
     local index = 1
 
-    -- states 支持分类表：状态/能量/配置开关/目标/焦点/鼠标/宠物/首领1-5
+    -- states 支持分类表：状态/特殊/能量/配置开关/目标/焦点/鼠标/宠物/首领1-5
     -- blocks.state 键：基础分类用名称本身；单位分类用 分类..名称（如 目标生命值）
     if type(t.states) == "table" then
         local stateCategoryOrder = {
-            "状态", "能量", "配置开关", "目标", "焦点", "鼠标", "宠物",
+            "状态", "特殊", "能量", "配置开关", "目标", "焦点", "鼠标", "宠物",
             "首领1", "首领2", "首领3", "首领4", "首领5",
         }
         local bareKeyCategories = {
             ["状态"] = true,
+            ["特殊"] = true,
             ["能量"] = true,
             ["配置开关"] = true,
         }
-        local nested = t.states["状态"] or t.states["能量"]
+        local nested = t.states["状态"] or t.states["特殊"] or t.states["能量"]
             or t.states["配置开关"] or t.states["目标"] or t.states["焦点"] or t.states["鼠标"]
             or t.states["宠物"]
             or t.states["首领1"] or t.states["首领2"] or t.states["首领3"]

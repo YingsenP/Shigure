@@ -393,6 +393,16 @@ Fuyutsui.keymap = {
     ["."] = 190,
     ["PERIOD"] = 190, -- WoW可能返回PERIOD而不是.
     ["/"] = 191,
+    ["INSERT"] = 45,
+    ["DELETE"] = 46,
+    ["HOME"] = 36,
+    ["END"] = 35,
+    ["PAGEUP"] = 33,
+    ["PAGEDOWN"] = 34,
+    ["LEFT"] = 37,
+    ["UP"] = 38,
+    ["RIGHT"] = 39,
+    ["DOWN"] = 40,
 }
 -- 角色类型映射
 Fuyutsui.roleMap = {

@@ -32,7 +32,9 @@ internal static partial class FuyutsuiKeymapConverter
         "NUMPADDECIMAL", "NUMPADPLUS", "NUMPADMINUS", "NUMPADMULTIPLY", "NUMPADDIVIDE",
         "F1", "F2", "F3", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
         ",", ".", "/", ";", "'", "[", "]", "\\",
-        "7", "8", "9", "0", "="
+        "7", "8", "9", "0", "=",
+        "-", "INSERT", "DELETE", "HOME", "END", "PAGEUP", "PAGEDOWN",
+        "UP", "DOWN", "LEFT", "RIGHT"
     ];
 
     private static readonly string[] MacroKind = BuildMacroKind();
@@ -637,7 +639,7 @@ internal static partial class FuyutsuiKeymapConverter
 
     private static string[] BuildMacroKind()
     {
-        var list = new string[Modifiers.Length * Keys.Length];
+        var list = new string[MacroSlotCapacity];
         var i = 0;
         foreach (var modifier in Modifiers)
         {

@@ -6,6 +6,7 @@ internal sealed class ModuleDependencyService
     private static readonly string[] StateCategories =
     [
         ClassStateCatalog.CategoryState,
+        ClassStateCatalog.CategorySpecial,
         ClassStateCatalog.CategoryResource,
         ClassStateCatalog.CategoryConfig,
         ClassStateCatalog.CategoryTarget,
@@ -74,8 +75,7 @@ internal sealed class ModuleDependencyService
         }
 
         EnsureMacroCapacity(classId.Value, macros);
-        var previous = module.Dependencies;
-        var captured = new ModuleDependencySnapshot
+        module.Dependencies = new ModuleDependencySnapshot
         {
             ClassId = classId.Value,
             SpecId = specId.Value,
@@ -100,84 +100,7 @@ internal sealed class ModuleDependencyService
                 SpecialSpells = CompactMacroSnapshots(macros.SpecialSpells.Select(CaptureMacro), isSpecial: true)
             }
         };
-        PreservePreviousSpellDependencies(captured, previous);
-        module.Dependencies = captured;
         return null;
-    }
-
-    private static void PreservePreviousSpellDependencies(
-        ModuleDependencySnapshot captured,
-        ModuleDependencySnapshot? previous)
-    {
-        if (previous is null || previous.ClassId != captured.ClassId || previous.SpecId != captured.SpecId)
-        {
-            return;
-        }
-
-        PreserveAuras(captured.Config.Spec.PlayerAuras, previous.Config.Spec.PlayerAuras);
-        PreserveAuras(captured.Config.Spec.TargetHarmfulAuras, previous.Config.Spec.TargetHarmfulAuras);
-        PreserveAuras(captured.Config.Spec.TargetHelpfulAuras, previous.Config.Spec.TargetHelpfulAuras);
-        PreserveAuras(captured.Config.Spec.FocusHarmfulAuras, previous.Config.Spec.FocusHarmfulAuras);
-        PreserveAuras(captured.Config.Spec.FocusHelpfulAuras, previous.Config.Spec.FocusHelpfulAuras);
-
-        foreach (var incoming in previous.Config.Spec.Spells ?? [])
-        {
-            var local = captured.Config.Spec.Spells.FirstOrDefault(spell => spell.SpellId == incoming.SpellId);
-            if (local is null)
-            {
-                captured.Config.Spec.Spells.Add(incoming.Clone());
-                continue;
-            }
-
-            local.Charge |= incoming.Charge;
-            local.ForcedKnown |= incoming.ForcedKnown;
-            local.InSpellBook |= incoming.InSpellBook;
-            local.MaxCharge ??= incoming.MaxCharge;
-            local.CastCount ??= incoming.CastCount;
-            if (string.IsNullOrWhiteSpace(local.Name))
-            {
-                local.Name = incoming.Name;
-            }
-        }
-
-        foreach (var incoming in previous.Config.SpellsList ?? [])
-        {
-            if (captured.Config.SpellsList.All(spell => spell.SpellId != incoming.SpellId))
-            {
-                captured.Config.SpellsList.Add(incoming.Clone());
-            }
-        }
-
-        PreserveMacros(captured.Macros.StaticSpells, previous.Macros.StaticSpells, isSpecial: false);
-        PreserveMacros(captured.Macros.SpecialSpells, previous.Macros.SpecialSpells, isSpecial: true);
-
-        static void PreserveAuras(List<ModuleAuraSnapshot> local, IEnumerable<ModuleAuraSnapshot>? incoming)
-        {
-            foreach (var aura in incoming ?? [])
-            {
-                var incomingIds = GetAuraSpellIds(aura.SpellId, aura.SpellIds).ToHashSet();
-                var existing = local.FirstOrDefault(candidate =>
-                    GetAuraSpellIds(candidate.SpellId, candidate.SpellIds).Any(incomingIds.Contains));
-                if (existing is null)
-                {
-                    local.Add(aura.Clone());
-                    continue;
-                }
-
-                foreach (var id in incomingIds)
-                {
-                    if (existing.SpellId != id && !existing.SpellIds.Contains(id))
-                    {
-                        existing.SpellIds.Add(id);
-                    }
-                }
-                existing.MaxApps ??= aura.MaxApps;
-                if (string.IsNullOrWhiteSpace(existing.Name))
-                {
-                    existing.Name = aura.Name;
-                }
-            }
-        }
     }
 
     public ModuleDependencyImportResult Import(IReadOnlyList<ModuleDefinition> modules)
@@ -321,6 +244,7 @@ internal sealed class ModuleDependencyService
             foreach (var category in new[]
                      {
                          ClassStateCatalog.CategoryState,
+                         ClassStateCatalog.CategorySpecial,
                          ClassStateCatalog.CategoryResource,
                          ClassStateCatalog.CategoryConfig
                      })
@@ -542,6 +466,7 @@ internal sealed class ModuleDependencyService
             }
         }
 
+        ClassBlocksStore.RelocateSpecialStateFields(local);
 
         var reservedNames = new HashSet<string>(StringComparer.Ordinal);
         if (local.NestedStates)
@@ -549,6 +474,7 @@ internal sealed class ModuleDependencyService
             foreach (var category in new[]
                      {
                          ClassStateCatalog.CategoryState,
+                         ClassStateCatalog.CategorySpecial,
                          ClassStateCatalog.CategoryResource,
                          ClassStateCatalog.CategoryConfig
                      })
@@ -822,7 +748,7 @@ internal sealed class ModuleDependencyService
 
             if (reservedNames.Contains(item.Name))
             {
-                counters.Conflicts.Add($"物品名称“{item.Name}”与本地状态、能量或配置开关字段重名，已跳过。");
+                counters.Conflicts.Add($"物品名称“{item.Name}”与本地状态、特殊、能量或配置开关字段重名，已跳过。");
                 continue;
             }
 
@@ -1108,27 +1034,6 @@ internal sealed class ModuleDependencyService
 
             local.Add(new ClassMacrosStore.ArrayEntry { Text = entry.Text, Comment = entry.Comment });
             counters.MacrosAdded++;
-        }
-    }
-
-    // 当前 Lua 已删除的静态/特殊宏不再从旧快照塞回；只把重叠条目上缺失的注释补回去。
-    private static void PreserveMacros(
-        List<ModuleMacroEntrySnapshot> local,
-        IEnumerable<ModuleMacroEntrySnapshot>? incoming,
-        bool isSpecial)
-    {
-        foreach (var macro in incoming ?? [])
-        {
-            if (string.IsNullOrWhiteSpace(macro.Text))
-            {
-                continue;
-            }
-
-            var index = IndexOfOverlappingMacroSnapshot(local, macro, isSpecial);
-            if (index >= 0)
-            {
-                UpgradeMacroComment(local[index], macro);
-            }
         }
     }
 

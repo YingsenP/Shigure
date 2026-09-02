@@ -54,9 +54,10 @@ public sealed class KeySender : IRuntimeKeyOutput
 
         var succeeded = true;
         var firstError = 0;
-        void SendMessage(int vk, bool keyUp)
+        var mainExtended = IsExtendedKey(mainKey);
+        void SendMessage(int vk, bool keyUp, bool extended = false)
         {
-            if (!Post(hwnd, vk, keyUp, out var error))
+            if (!Post(hwnd, vk, keyUp, extended, out var error))
             {
                 succeeded = false;
                 if (firstError == 0)
@@ -71,8 +72,8 @@ public sealed class KeySender : IRuntimeKeyOutput
             SendMessage(vk, keyUp: false);
         }
 
-        SendMessage(vkMain.Value, keyUp: false);
-        SendMessage(vkMain.Value, keyUp: true);
+        SendMessage(vkMain.Value, keyUp: false, mainExtended);
+        SendMessage(vkMain.Value, keyUp: true, mainExtended);
 
         for (var i = modVks.Count - 1; i >= 0; i--)
         {
@@ -96,40 +97,84 @@ public sealed class KeySender : IRuntimeKeyOutput
             return (new List<string>(), null);
         }
 
-        var rawParts = hotkey.Trim().Split('-', StringSplitOptions.RemoveEmptyEntries);
-        if (rawParts.Length == 0)
-        {
-            return (new List<string>(), null);
-        }
-
-        var mainKey = rawParts[^1];
+        // 从左消费修饰前缀，剩余整段当主键。CTRL-- 不能按 '-' 切开，否则会丢掉减号。
+        var remaining = hotkey.Trim();
         var mods = new List<string>();
-        foreach (var raw in rawParts[..^1])
+        while (TryConsumeModifierPrefix(ref remaining, out var modifier))
         {
-            var part = raw.Trim().ToUpperInvariant();
-            part = part switch
+            if (!mods.Contains(modifier))
             {
-                "CONTROL" => "CTRL",
-                "MENU" => "ALT",
-                _ => part
-            };
-
-            if (part is "CTRL" or "ALT" or "SHIFT" && !mods.Contains(part))
-            {
-                mods.Add(part);
+                mods.Add(modifier);
             }
         }
 
-        return (mods, mainKey);
+        return remaining.Length == 0 ? (mods, null) : (mods, remaining);
     }
+
+    private static bool TryConsumeModifierPrefix(ref string remaining, out string modifier)
+    {
+        if (StartsWithIgnoreCase(remaining, "CONTROL-"))
+        {
+            remaining = remaining["CONTROL-".Length..];
+            modifier = "CTRL";
+            return true;
+        }
+
+        if (StartsWithIgnoreCase(remaining, "CTRL-"))
+        {
+            remaining = remaining["CTRL-".Length..];
+            modifier = "CTRL";
+            return true;
+        }
+
+        if (StartsWithIgnoreCase(remaining, "MENU-"))
+        {
+            remaining = remaining["MENU-".Length..];
+            modifier = "ALT";
+            return true;
+        }
+
+        if (StartsWithIgnoreCase(remaining, "ALT-"))
+        {
+            remaining = remaining["ALT-".Length..];
+            modifier = "ALT";
+            return true;
+        }
+
+        if (StartsWithIgnoreCase(remaining, "SHIFT-"))
+        {
+            remaining = remaining["SHIFT-".Length..];
+            modifier = "SHIFT";
+            return true;
+        }
+
+        modifier = "";
+        return false;
+    }
+
+    private static bool StartsWithIgnoreCase(string value, string prefix)
+        => value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsExtendedKey(string keyName)
+        => keyName.Equals("NUMPADDIVIDE", StringComparison.OrdinalIgnoreCase)
+            || keyName.Equals("INSERT", StringComparison.OrdinalIgnoreCase)
+            || keyName.Equals("DELETE", StringComparison.OrdinalIgnoreCase)
+            || keyName.Equals("HOME", StringComparison.OrdinalIgnoreCase)
+            || keyName.Equals("END", StringComparison.OrdinalIgnoreCase)
+            || keyName.Equals("PAGEUP", StringComparison.OrdinalIgnoreCase)
+            || keyName.Equals("PAGEDOWN", StringComparison.OrdinalIgnoreCase)
+            || keyName.Equals("LEFT", StringComparison.OrdinalIgnoreCase)
+            || keyName.Equals("UP", StringComparison.OrdinalIgnoreCase)
+            || keyName.Equals("RIGHT", StringComparison.OrdinalIgnoreCase)
+            || keyName.Equals("DOWN", StringComparison.OrdinalIgnoreCase);
 
     private static KeySendResult Fail(string reason) => KeySendResult.Failure(reason);
 
-    private static bool Post(nint hwnd, int keyCode, bool keyUp, out int error)
+    private static bool Post(nint hwnd, int keyCode, bool keyUp, bool extended, out int error)
     {
         var scanCode = NativeMethods.MapVirtualKeyW((uint)keyCode, 0) & 0xFF;
         var value = 1u | (scanCode << 16);
-        if (keyCode == 0x6F) // VK_DIVIDE 是扩展键。
+        if (extended || keyCode == 0x6F) // VK_DIVIDE 与导航/方向键是扩展键。
         {
             value |= 1u << 24;
         }

@@ -50,7 +50,7 @@ verified_at: 2026-08-10
 
 ## 范围与非范围
 
-本页覆盖运行时 Keymap 选择和 Windows 输出。Lua 宏如何转换为 273 个键位项见 [[30-Shigure/09-Shigure-Fuyutsui配置宏编辑与同步]]；触发模式状态机见运行循环页。
+本页覆盖运行时 Keymap 选择和 Windows 输出。Lua 宏如何转换为 350 个键位项见 [[30-Shigure/09-Shigure-Fuyutsui配置宏编辑与同步]]；触发模式状态机见运行循环页。
 
 ## 从规则到按键
 
@@ -88,9 +88,9 @@ ModuleRule(Unit / Spell / MacroCondition)
 
 ## 虚拟键解析
 
-- 命名键包含 CTRL/ALT/SHIFT、鼠标侧键、F1..F12、数字小键盘和常见标点。
+- 命名键包含 CTRL/ALT/SHIFT、鼠标侧键、F1..F12、数字小键盘、导航键（INSERT/DELETE/HOME/END/PAGEUP/PAGEDOWN）、方向键和常见标点（含 `-`）。
 - 单字符可通过 `VkKeyScan` 转为主键及隐含修饰键。
-- chord 中只有 CTRL、ALT、SHIFT 被保留为修饰键；未知的修饰 token 会被忽略，最后解析到的普通键作为主键。
+- chord 从左消费 CTRL/ALT/SHIFT 前缀，剩余整段当主键；因此 `CTRL--` 的主键是 `-`，不能按 `-` 切开。
 - UI 不允许把 ALT 设为**触发键**，并会把已有 ALT 触发配置回退到 XBUTTON2；这不影响把 ALT 用作**输出 Hotkey 修饰键**。
 
 ## Windows 消息输出边界
@@ -99,7 +99,7 @@ ModuleRule(Unit / Spell / MacroCondition)
 2. 运行时传入本轮扫描得到的窗口句柄；若发送时目标已切换，放弃发送并等待重新扫描。
 3. 依次投递修饰键按下、主键按下、主键抬起、修饰键逆序抬起。
 4. 使用 `WM_KEYDOWN` / `WM_KEYUP`，不会主动激活或切到前台。
-5. 目前只有数字小键盘除号设置 extended-key 标志；发送错误 5 通常指向完整性级别/UIPI 权限差异。
+5. 小键盘除号、导航六键和四个方向键设置 extended-key 标志；发送错误 5 通常指向完整性级别/UIPI 权限差异。
 
 目标先按配置进程名限定 PID，再按 Z 顺序选择窗口；它不验证签名或固定某个进程实例。多个候选实例之间切换会触发句柄防陈旧检查；目标程序是否处理后台 `PostMessage` 仍取决于其消息循环和权限。
 

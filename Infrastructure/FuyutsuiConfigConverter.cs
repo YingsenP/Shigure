@@ -29,6 +29,7 @@ internal static class FuyutsuiConfigConverter
     private static readonly string[] StateCategoryOrder =
     [
         ClassStateCatalog.CategoryState,
+        ClassStateCatalog.CategorySpecial,
         ClassStateCatalog.CategoryResource,
         ClassStateCatalog.CategoryConfig,
         ClassStateCatalog.CategoryTarget,

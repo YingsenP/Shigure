@@ -17,6 +17,7 @@ internal static class ClassBlocksStore
     private static readonly string[] StateCategories =
     [
         ClassStateCatalog.CategoryState,
+        ClassStateCatalog.CategorySpecial,
         ClassStateCatalog.CategoryResource,
         ClassStateCatalog.CategoryConfig,
         ClassStateCatalog.CategoryTarget,
@@ -71,6 +72,7 @@ internal static class ClassBlocksStore
         public Dictionary<string, List<string>> CategorizedStates { get; } = new(StringComparer.Ordinal)
         {
             [ClassStateCatalog.CategoryState] = new List<string>(),
+            [ClassStateCatalog.CategorySpecial] = new List<string>(),
             [ClassStateCatalog.CategoryResource] = new List<string>(),
             [ClassStateCatalog.CategoryConfig] = new List<string>(),
             [ClassStateCatalog.CategoryTarget] = new List<string>(),
@@ -565,6 +567,8 @@ internal static class ClassBlocksStore
                         }
                     }
                 }
+
+                RelocateSpecialStateFields(result);
             }
             else
             {
@@ -785,6 +789,7 @@ internal static class ClassBlocksStore
 
     private static void WriteSpec(StringBuilder sb, SpecBlocks spec, string indent)
     {
+        RelocateSpecialStateFields(spec);
         ValidateItemsForSerialization(spec);
 
         // states
@@ -937,6 +942,37 @@ internal static class ClassBlocksStore
         }
     }
 
+    internal static void RelocateSpecialStateFields(SpecBlocks spec)
+    {
+        if (!spec.NestedStates)
+        {
+            return;
+        }
+
+        if (!spec.CategorizedStates.TryGetValue(ClassStateCatalog.CategoryState, out var stateList)
+            || !spec.CategorizedStates.TryGetValue(ClassStateCatalog.CategorySpecial, out var specialList))
+        {
+            return;
+        }
+
+        for (var index = 0; index < stateList.Count;)
+        {
+            var name = stateList[index];
+            if (!ClassStateCatalog.IsKnown(ClassStateCatalog.CategorySpecial, name)
+                || ClassStateCatalog.IsKnown(ClassStateCatalog.CategoryState, name))
+            {
+                index++;
+                continue;
+            }
+
+            stateList.RemoveAt(index);
+            if (!specialList.Contains(name, StringComparer.Ordinal))
+            {
+                specialList.Add(name);
+            }
+        }
+    }
+
     private static void ValidateItemsForSerialization(SpecBlocks spec)
     {
         if (spec.Items.Count == 0)
@@ -952,6 +988,7 @@ internal static class ClassBlocksStore
             foreach (var category in new[]
                      {
                          ClassStateCatalog.CategoryState,
+                         ClassStateCatalog.CategorySpecial,
                          ClassStateCatalog.CategoryResource,
                          ClassStateCatalog.CategoryConfig
                      })
@@ -983,7 +1020,7 @@ internal static class ClassBlocksStore
 
             if (bareNames.Contains(item.Name))
             {
-                throw new InvalidOperationException($"物品名称“{item.Name}”与状态、能量或配置开关字段重名。");
+                throw new InvalidOperationException($"物品名称“{item.Name}”与状态、特殊、能量或配置开关字段重名。");
             }
         }
     }

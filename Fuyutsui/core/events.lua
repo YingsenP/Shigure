@@ -214,6 +214,7 @@ function Fuyutsui:SPELL_UPDATE_COOLDOWN(_, spellID, baseSpellID)
         self:UpdatePlayerForbearance()
     end
     self:RecordKnightSpellState(spellID)
+    self:UpdateBoilingPoint(spellID) -- 沸点
 end
 
 local potions = {
