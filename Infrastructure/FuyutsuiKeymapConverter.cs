@@ -35,9 +35,16 @@ internal static partial class FuyutsuiKeymapConverter
         "7", "8", "9", "0", "="
     ];
 
+    // 接在原 273 槽之后；不含 F4、反引号、NUMPADENTER。
+    private static readonly string[] ExtraKeys =
+    [
+        "-", "INSERT", "DELETE", "HOME", "END", "PAGEUP", "PAGEDOWN",
+        "UP", "DOWN", "LEFT", "RIGHT"
+    ];
+
     private static readonly string[] MacroKind = BuildMacroKind();
 
-    internal static int MacroSlotCapacity => Modifiers.Length * Keys.Length;
+    internal static int MacroSlotCapacity => Modifiers.Length * (Keys.Length + ExtraKeys.Length);
 
     private static readonly Dictionary<string, int> ClassFileToId = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -637,11 +644,19 @@ internal static partial class FuyutsuiKeymapConverter
 
     private static string[] BuildMacroKind()
     {
-        var list = new string[Modifiers.Length * Keys.Length];
+        var list = new string[MacroSlotCapacity];
         var i = 0;
         foreach (var modifier in Modifiers)
         {
             foreach (var key in Keys)
+            {
+                list[i++] = $"{modifier}-{key}";
+            }
+        }
+
+        foreach (var modifier in Modifiers)
+        {
+            foreach (var key in ExtraKeys)
             {
                 list[i++] = $"{modifier}-{key}";
             }

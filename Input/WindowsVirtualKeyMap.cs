@@ -41,7 +41,17 @@ internal static class WindowsVirtualKeyMap
         ["NUMPADPLUS"] = 0x6B,
         ["NUMPADMINUS"] = 0x6D,
         ["NUMPADMULTIPLY"] = 0x6A,
-        ["NUMPADDIVIDE"] = 0x6F
+        ["NUMPADDIVIDE"] = 0x6F,
+        ["INSERT"] = 0x2D,
+        ["DELETE"] = 0x2E,
+        ["HOME"] = 0x24,
+        ["END"] = 0x23,
+        ["PAGEUP"] = 0x21,
+        ["PAGEDOWN"] = 0x22,
+        ["LEFT"] = 0x25,
+        ["UP"] = 0x26,
+        ["RIGHT"] = 0x27,
+        ["DOWN"] = 0x28
     };
 
     private static readonly Dictionary<string, int> CharacterKeys = new()

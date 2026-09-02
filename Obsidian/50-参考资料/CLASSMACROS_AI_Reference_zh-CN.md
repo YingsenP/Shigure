@@ -1,6 +1,6 @@
 ---
 title: "Fuyutsui core/classmacros.lua：AI 宏规则参考"
-summary: "说明 ClassMacros 的动态、静态、特殊宏声明，以及 CreateMacro 的 273 槽展开与覆盖绑定顺序。"
+summary: "说明 ClassMacros 的动态、静态、特殊宏声明，以及 CreateMacro 的 350 槽展开与覆盖绑定顺序。"
 language: "zh-CN"
 primary_file: "core/classmacros.lua"
 related:
@@ -100,13 +100,13 @@ macro.lua:CreateMacro(dynamic, static, special)
 
 `core/macro.lua` 用修饰键 × 基础键生成有序列表 `macroKind[1..N]`。覆盖绑定挂在独立 `bindingOwner` 上，便于 `ClearMacros` 只清本插件绑定。
 
-| 修饰键顺序 | 基础键（每组 39 个） |
+| 修饰键顺序 | 基础键 |
 |---|---|
-| `CTRL` → `ALT` → `SHIFT` → `ALT-CTRL` → `ALT-SHIFT` → `CTRL-SHIFT` → `ALT-CTRL-SHIFT` | 小键盘 0–9 / 小数点 / + / − / × / ÷；`F1–F3,F5–F12`（**无 F4**）；`, . / ; ' [ ] \`；`7 8 9 0 =` |
+| `CTRL` → `ALT` → `SHIFT` → `ALT-CTRL` → `ALT-SHIFT` → `CTRL-SHIFT` → `ALT-CTRL-SHIFT` | **第一段 39 键（槽 1–273）**：小键盘 0–9 / 小数点 / + / − / × / ÷；`F1–F3,F5–F12`（**无 F4**）；`, . / ; ' [ ] \`；`7 8 9 0 =`。**第二段 11 键（槽 274–350）**：`-`、`INSERT` `DELETE` `HOME` `END` `PAGEUP` `PAGEDOWN`、`UP` `DOWN` `LEFT` `RIGHT`。不加反引号、`NUMPADENTER`。 |
 
-- 总槽位数 = `7 × 39 = 273`。
+- 总槽位数 = `273 + 7 × 11 = 350`。
 - 按钮名：`s1`、`s2`、…（与 `macroKind` 下标一致）。
-- 当前键池定义直接见 `Fuyutsui/core/keybinds.lua`（ID 1 = `CTRL-NUMPAD1`，以此类推）。
+- 当前键池定义直接见 `Fuyutsui/core/macro.lua`（ID 1 = `CTRL-NUMPAD1`，以此类推；新键从槽 274 的 `CTRL--` 起）。
 
 **AI 改宏时**：关心的是解析后的 `dynamic` 占用多少槽、以及 static/special 数组下标对应的全局热键；不必手算，除非要核对外部程序按键映射。
 
@@ -431,10 +431,9 @@ staticSpells = {
 
 | 文件 | 职责 | 改宏时 |
 |---|---|---|
-| `core/macro.lua` | 热键表、`ClearMacros`、顺序占键、`resolveMacroBody`、安全按钮 | 仅当要改分配规则/键池时才动 |
+| `core/macro.lua` | 热键表、`ClearMacros`、顺序占键、`resolveMacroBody`、安全按钮 | 仅当要改分配规则/键池时才动；须与 C# `FuyutsuiKeymapConverter` 同序 |
 | `main.lua` | `ResolveDynamicSpells`、`LoadPlayerMacros` 选职业+专精 | 一般不动 |
 | `core/player.lua` | 加载/切换专精时调用 `LoadPlayerMacros` | 一般不动 |
-| `Fuyutsui/core/keybinds.lua` | 当前热键 ID 与顺序权威源 | 键池变更时同步 |
 | `core/keybinds.lua` / `config.lua` keymap | 动作条扫描 → 像素协议 | **另一套**按键编码，与 ClassMacros 覆盖绑定无关 |
 | `class/*.lua` | ClassBlocks 色块 | 不放宏 |
 
