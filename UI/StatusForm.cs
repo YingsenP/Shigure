@@ -1370,11 +1370,12 @@ public sealed class StatusForm : Form
             Dock = DockStyle.Top,
             BackColor = UiTheme.Surface,
             ColumnCount = 2,
-            RowCount = 4,
+            RowCount = 5,
             Margin = new Padding(0)
         };
         fields.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         fields.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        fields.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         fields.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         fields.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         fields.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -1387,9 +1388,16 @@ public sealed class StatusForm : Form
                 "队伍类型", "队伍人数", "首领战", "难度", "英雄天赋", "施法目标",
                 "施法技能", "敌人数量", "敌人数-无仇恨", "敌人数-有仇恨",
                 "施法(正计时)", "施法(倒计时)", "引导", "蓄力", "蓄力层数",
-                "酒池", "符文", "姿态", "神圣军备", "自律", "上个技能", "公共冷却", "英勇打击", "吸血鬼打击", "收割者战刃", "沸点"
+                "上个技能", "公共冷却"
             ],
             150), 0, 0);
+        fields.Controls.Add(CreateCommonFieldCard(
+            "特殊",
+            [
+                "酒池", "符文", "姿态", "神圣军备", "自律", "天启骑士数量",
+                "英勇打击", "吸血鬼打击", "收割者战刃", "沸点"
+            ],
+            150), 1, 0);
         fields.Controls.Add(CreateCommonFieldCard(
             "能量",
             [
@@ -1397,31 +1405,31 @@ public sealed class StatusForm : Form
                 "星界能量", "漩涡值", "狂乱值", "恶魔之怒", "痛苦值",
                 "连击点", "神圣能量", "精华能量", "灵魂碎片", "真气", "增压层数"
             ],
-            150), 1, 0);
+            150), 0, 1);
         fields.Controls.Add(CreateCommonFieldCard(
             "配置开关",
             ["爆发开关", "AOE开关", "输出模式", "爆发药水开关", "延迟"],
-            92), 0, 1);
+            92), 1, 1);
         fields.Controls.Add(CreateCommonFieldCard(
             "物品",
             ["治疗药水", "魔法药水", "治疗石", "鲁莽药水", "圣光潜力"],
-            92), 1, 1);
+            92), 0, 2);
         fields.Controls.Add(CreateCommonFieldCard(
             "目标",
             ["类型", "生命值", "距离", "施法(倒计时)", "施法(正计时)", "施法可打断", "引导", "引导可打断"],
-            104), 0, 2);
+            104), 1, 2);
         fields.Controls.Add(CreateCommonFieldCard(
             "焦点",
             ["类型", "生命值", "距离", "施法(倒计时)", "施法(正计时)", "施法可打断", "引导", "引导可打断"],
-            104), 1, 2);
+            104), 0, 3);
         fields.Controls.Add(CreateCommonFieldCard(
             "鼠标",
             ["类型", "生命值", "距离", "施法(倒计时)", "施法(正计时)", "施法可打断", "引导", "引导可打断"],
-            104), 0, 3);
+            104), 1, 3);
         fields.Controls.Add(CreateCommonFieldCard(
             "宠物",
             ["存在", "生命值"],
-            104), 1, 3);
+            104), 0, 4);
 
         scrollHost.Controls.Add(fields);
         return scrollHost;

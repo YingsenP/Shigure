@@ -3669,6 +3669,7 @@ public sealed class ClassConfigEditorControl : UserControl
                 foreach (var category in new[]
                          {
                              ClassStateCatalog.CategoryState,
+                             ClassStateCatalog.CategorySpecial,
                              ClassStateCatalog.CategoryResource,
                              ClassStateCatalog.CategoryConfig
                          })
@@ -3714,7 +3715,7 @@ public sealed class ClassConfigEditorControl : UserControl
 
                 if (bareNames.Contains(item.Name))
                 {
-                    error = $"专精 {specId} 的物品名称“{item.Name}”与状态、能量或配置开关字段重名。";
+                    error = $"专精 {specId} 的物品名称“{item.Name}”与状态、特殊、能量或配置开关字段重名。";
                     return false;
                 }
             }

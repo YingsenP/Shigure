@@ -285,13 +285,13 @@ function Fuyutsui:UpdateRune()
         end
     end
     state.runeCount = total / 255 or 0
-    self:UpdateBareStateBlock("符文", { "能量", "状态" })
+    self:UpdateBareStateBlock("符文", { "能量", "特殊", "状态" })
 end
 
 function Fuyutsui:RefreshShapeshiftFormState()
     local shapeshiftFormID = GetShapeshiftFormID() or 0
     state.shapeshiftFormID = shapeshiftFormID / 255
-    self:UpdateStateBlock("状态", "姿态")
+    self:UpdateStateBlock("特殊", "姿态")
 end
 
 function Fuyutsui:RefreshDrinkStatus(spellID)
@@ -384,12 +384,12 @@ function Fuyutsui:UpdatePlayerStagger()
     local maxHealth = UnitHealthMax(unit)
     if issecretvalue(damage) or issecretvalue(maxHealth) then
         state.staggerPercent = 0
-        self:UpdateStateBlock("状态", "酒池")
+        self:UpdateStateBlock("特殊", "酒池")
         return
     end
     local staggerPercent = damage / maxHealth * 100
     state.staggerPercent = staggerPercent / 255 or 0
-    self:UpdateStateBlock("状态", "酒池")
+    self:UpdateStateBlock("特殊", "酒池")
 end
 
 local holyArmaments = {
@@ -404,7 +404,7 @@ function Fuyutsui:UpdateHolyArmaments(spellID) -- 神圣军备
         if not overrideSpellID then return end
         if overrideSpellID == spellId then
             state.holyArmaments = index / 255 or 0
-            self:UpdateStateBlock("状态", "神圣军备")
+            self:UpdateStateBlock("特殊", "神圣军备")
         end
     end
 end
@@ -419,12 +419,12 @@ function Fuyutsui:UpdatePlayerForbearance() -- 25771 自律
 
     local remaining = 30
     state.forbearance = remaining / 255
-    self:UpdateStateBlock("状态", "自律")
+    self:UpdateStateBlock("特殊", "自律")
 
     forbearanceTimer = C_Timer.NewTicker(1, function()
         remaining = remaining - 1
         state.forbearance = remaining > 0 and (remaining / 255) or 0
-        self:UpdateStateBlock("状态", "自律")
+        self:UpdateStateBlock("特殊", "自律")
         if remaining <= 0 then
             forbearanceTimer = nil
         end
@@ -438,10 +438,10 @@ function Fuyutsui:UpdateVampiricStrike(spellID) -- 吸血鬼打击
 
         if overrideSpellID1 == 433895 or overrideSpellID2 == 433895 then
             state.VampiricStrike = 1 / 255
-            self:UpdateStateBlock("状态", "吸血鬼打击")
+            self:UpdateStateBlock("特殊", "吸血鬼打击")
         else
             state.VampiricStrike = 0
-            self:UpdateStateBlock("状态", "吸血鬼打击")
+            self:UpdateStateBlock("特殊", "吸血鬼打击")
         end
     end
 end
@@ -458,12 +458,12 @@ function Fuyutsui:UpdateBoilingPoint(spellID) -- 沸点
 
     local remaining = 3
     state.boilingPoint = remaining / 255
-    self:UpdateStateBlock("状态", "沸点")
+    self:UpdateStateBlock("特殊", "沸点")
 
     boilingPointTimer = C_Timer.NewTicker(1, function()
         remaining = remaining - 1
         state.boilingPoint = remaining > 0 and (remaining / 255) or 0
-        self:UpdateStateBlock("状态", "沸点")
+        self:UpdateStateBlock("特殊", "沸点")
         if remaining <= 0 then
             boilingPointTimer = nil
         end
@@ -506,7 +506,7 @@ end
 
 function Fuyutsui:RefreshActiveKnightCount()
     state.knightCount = GetActiveKnightsCount() / 255
-    self:UpdateStateBlock("状态", "天启骑士数量")
+    self:UpdateStateBlock("特殊", "天启骑士数量")
 end
 
 function Fuyutsui:UpdateReaverGlaive(spellID) -- 收割者战刃
@@ -515,10 +515,10 @@ function Fuyutsui:UpdateReaverGlaive(spellID) -- 收割者战刃
 
     if overrideSpellID == 433895 then
         state.reaverGlaive = 1 / 255
-        self:UpdateStateBlock("状态", "收割者战刃")
+        self:UpdateStateBlock("特殊", "收割者战刃")
     else
         state.reaverGlaive = 0
-        self:UpdateStateBlock("状态", "收割者战刃")
+        self:UpdateStateBlock("特殊", "收割者战刃")
     end
 end
 
@@ -536,18 +536,18 @@ function Fuyutsui:UpdateHeroicStrike(spellID) -- 英勇打击
     if overrideSpellID == 1269383 then
         local remaining = 15
         state.heroicStrike = remaining / 255
-        self:UpdateStateBlock("状态", "英勇打击")
+        self:UpdateStateBlock("特殊", "英勇打击")
 
         heroicStrikeTimer = C_Timer.NewTicker(1, function()
             remaining = remaining - 1
             state.heroicStrike = remaining > 0 and (remaining / 255) or 0
-            self:UpdateStateBlock("状态", "英勇打击")
+            self:UpdateStateBlock("特殊", "英勇打击")
             if remaining <= 0 then
                 heroicStrikeTimer = nil
             end
         end, 15)
     else
         state.heroicStrike = 0
-        self:UpdateStateBlock("状态", "英勇打击")
+        self:UpdateStateBlock("特殊", "英勇打击")
     end
 end

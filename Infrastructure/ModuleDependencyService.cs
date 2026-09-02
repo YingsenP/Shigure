@@ -6,6 +6,7 @@ internal sealed class ModuleDependencyService
     private static readonly string[] StateCategories =
     [
         ClassStateCatalog.CategoryState,
+        ClassStateCatalog.CategorySpecial,
         ClassStateCatalog.CategoryResource,
         ClassStateCatalog.CategoryConfig,
         ClassStateCatalog.CategoryTarget,
@@ -243,6 +244,7 @@ internal sealed class ModuleDependencyService
             foreach (var category in new[]
                      {
                          ClassStateCatalog.CategoryState,
+                         ClassStateCatalog.CategorySpecial,
                          ClassStateCatalog.CategoryResource,
                          ClassStateCatalog.CategoryConfig
                      })
@@ -464,6 +466,7 @@ internal sealed class ModuleDependencyService
             }
         }
 
+        ClassBlocksStore.RelocateSpecialStateFields(local);
 
         var reservedNames = new HashSet<string>(StringComparer.Ordinal);
         if (local.NestedStates)
@@ -471,6 +474,7 @@ internal sealed class ModuleDependencyService
             foreach (var category in new[]
                      {
                          ClassStateCatalog.CategoryState,
+                         ClassStateCatalog.CategorySpecial,
                          ClassStateCatalog.CategoryResource,
                          ClassStateCatalog.CategoryConfig
                      })
@@ -744,7 +748,7 @@ internal sealed class ModuleDependencyService
 
             if (reservedNames.Contains(item.Name))
             {
-                counters.Conflicts.Add($"物品名称“{item.Name}”与本地状态、能量或配置开关字段重名，已跳过。");
+                counters.Conflicts.Add($"物品名称“{item.Name}”与本地状态、特殊、能量或配置开关字段重名，已跳过。");
                 continue;
             }
 
