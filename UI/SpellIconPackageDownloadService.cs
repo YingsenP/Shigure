@@ -155,9 +155,7 @@ internal sealed class SpellIconPackageDownloadService : IDisposable
         throw new HttpRequestException(
             "无法从 GitHub 获取技能/物品数据包。"
             + Environment.NewLine
-            + string.Join(Environment.NewLine, errors)
-            + Environment.NewLine
-            + $"可从 {ReleasesPageUrl} 手动下载 {AssetName}。");
+            + string.Join(Environment.NewLine, errors));
     }
 
     private static async Task<ReleaseAsset?> TryResolveAsync(
