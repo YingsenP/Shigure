@@ -128,20 +128,20 @@ local stateBlockGetters = {
         ["敌人数量"] = function() return state.enemyCount or 0 end,
         ["敌人数-无仇恨"] = function() return state.noThreatEnemyCount or 0 end,
         ["敌人数-有仇恨"] = function() return state.threatEnemyCount or 0 end,
+        ["上个技能"] = function() return state.PreviousSkill or 0 end,
+        ["公共冷却"] = function(self) return GetSpellCooldownPixel(61304, self.curveMs) end,
+        -- 职业特殊状态
         ["酒池"] = function() return state.staggerPercent or 0 end,
         ["神圣军备"] = function() return state.holyArmaments or 0 end,
         ["吸血鬼打击"] = function() return state.VampiricStrike or 0 end,
         ["收割者战刃"] = function() return state.reaverGlaive or 0 end,
         ["英勇打击"] = function() return state.heroicStrike or 0 end,
-        -- 兼容：旧职业表仍把能量/配置/物品写在 ["状态"] 下
         ["符文"] = function() return GetRunePixel() end,
         ["姿态"] = function() return state.shapeshiftFormID or 0 end,
         ["天启骑士数量"] = function() return state.knightCount or 0 end,
         ["自律"] = function() return state.forbearance or 0 end,
         ["沸点"] = function() return state.boilingPoint or 0 end,
-        ["上个技能"] = function() return state.PreviousSkill or 0 end,
-        ["公共冷却"] = function(self) return GetSpellCooldownPixel(61304, self.curveMs) end,
-
+        -- 配置开关
         ["爆发开关"] = function(self) return GetConfigPixel(self, "cooldowns") end,
         ["AOE开关"] = function(self) return GetConfigPixel(self, "aoeMode") end,
         ["输出模式"] = function(self) return GetConfigPixel(self, "dpsMode") end,
