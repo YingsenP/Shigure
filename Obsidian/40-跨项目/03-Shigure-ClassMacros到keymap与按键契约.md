@@ -56,7 +56,7 @@ dynamicSpells（每项展开 30 个团队槽）
   → specialSpells
 ```
 
-`dynamicSpells` 支持 `common + [specIndex]`；Fuyutsui 运行时和 Shigure 转换器必须按相同专精解析。宏键池容量由 Fuyutsui 预设组合决定：先 7 组修饰符 × 39 个原主键（273），再追加 7 × 11 个主键（减号、导航六键、四个方向键）共 350 个组合。不含 F4、反引号、NUMPADENTER。新增内容必须先做容量预算，且只能往键池末尾追加，不能插入原 39 键中间。
+`dynamicSpells` 支持 `common + [specIndex]`；Fuyutsui 运行时和 Shigure 转换器必须按相同专精解析。宏键池容量由 Fuyutsui 预设组合决定：7 组修饰符 × 50 个主键共 350 个组合（原 39 键末尾追加减号、导航六键、四个方向键）。不含 F4、反引号、NUMPADENTER。新增主键只能往 `keys` 末尾追加，插入中间会平移后续槽位。
 
 ## 范围
 

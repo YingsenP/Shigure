@@ -117,7 +117,7 @@ verified_at: 2026-08-10
 
 ## ClassMacros → keymap
 
-- 固定键池先按 7 个修饰组合 × 39 个主键生成 **273** 项（主键序列刻意不含 F4），再在末尾追加 7 × 11 项（`-`、导航六键、四个方向键），共 **350** 项。不含反引号和 `NUMPADENTER`。Lua `macroKind` 与 C# `FuyutsuiKeymapConverter` 必须逐项相同。
+- 固定键池为 7 个修饰组合 × 50 个主键 = **350** 项。主键含原小键盘/F 键/标点/数字，末尾追加 `-`、导航六键和四个方向键；刻意不含 F4、反引号和 `NUMPADENTER`。Lua `macroKind` 与 C# `FuyutsuiKeymapConverter` 必须逐项相同。
 - 动态宏项每项预留/消耗 30 个单位位置，然后是静态宏和特殊宏；超过容量会警告并截断。
 - 旧 flat 格式或 common+spec 格式都可转换；专精输出是“common + 当前 spec + static + special”的完整映射，以适配运行时不合并顶层的语义。
 - party1..4 映射组员槽 2..5；原始 `@player` 动态语义映射组员槽 1；显式中文/player 保留单位 31；raid1..30 映射 1..30。
@@ -167,7 +167,7 @@ verified_at: 2026-08-10
 - `Infrastructure/ClassBlocksStore.cs:102-207`：modern 判定、替换保存与 legacy 行为。
 - `Infrastructure/ClassMacrosStore.cs:63-354`：宏表加载、直接写回和 canonical 序列化。
 - `Infrastructure/FuyutsuiConfigConverter.cs:44-483`：13 职业、步骤顺序、组员与字段规范化。
-- `Infrastructure/FuyutsuiKeymapConverter.cs`：350 键池（前 273 不变）、单位映射、宏/注释解析。
+- `Infrastructure/FuyutsuiKeymapConverter.cs`：350 键池、单位映射、宏/注释解析。
 - `UI/MainForm.cs:624-867`：启动部署、串行更新尾、转换、全量/单文件部署、刷新和告警。
 - `UI/MainForm.cs:781-958`：运行前等待队列并重启会话。
 

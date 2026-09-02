@@ -102,11 +102,11 @@ macro.lua:CreateMacro(dynamic, static, special)
 
 | 修饰键顺序 | 基础键 |
 |---|---|
-| `CTRL` → `ALT` → `SHIFT` → `ALT-CTRL` → `ALT-SHIFT` → `CTRL-SHIFT` → `ALT-CTRL-SHIFT` | **第一段 39 键（槽 1–273）**：小键盘 0–9 / 小数点 / + / − / × / ÷；`F1–F3,F5–F12`（**无 F4**）；`, . / ; ' [ ] \`；`7 8 9 0 =`。**第二段 11 键（槽 274–350）**：`-`、`INSERT` `DELETE` `HOME` `END` `PAGEUP` `PAGEDOWN`、`UP` `DOWN` `LEFT` `RIGHT`。不加反引号、`NUMPADENTER`。 |
+| `CTRL` → `ALT` → `SHIFT` → `ALT-CTRL` → `ALT-SHIFT` → `CTRL-SHIFT` → `ALT-CTRL-SHIFT` | 小键盘 0–9 / 小数点 / + / − / × / ÷；`F1–F3,F5–F12`（**无 F4**）；`, . / ; ' [ ] \`；`7 8 9 0 =`；末尾 `-`、`INSERT` `DELETE` `HOME` `END` `PAGEUP` `PAGEDOWN`、`UP` `DOWN` `LEFT` `RIGHT`。不加反引号、`NUMPADENTER`。 |
 
-- 总槽位数 = `273 + 7 × 11 = 350`。
+- 总槽位数 = `7 × 50 = 350`。
 - 按钮名：`s1`、`s2`、…（与 `macroKind` 下标一致）。
-- 当前键池定义直接见 `Fuyutsui/core/macro.lua`（ID 1 = `CTRL-NUMPAD1`，以此类推；新键从槽 274 的 `CTRL--` 起）。
+- 当前键池定义直接见 `Fuyutsui/core/macro.lua`（ID 1 = `CTRL-NUMPAD1`，以此类推）。
 
 **AI 改宏时**：关心的是解析后的 `dynamic` 占用多少槽、以及 static/special 数组下标对应的全局热键；不必手算，除非要核对外部程序按键映射。
 

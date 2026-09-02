@@ -43,7 +43,7 @@ verified_at: 2026-08-09
 
 ## AI 快速摘要
 
-> `ReadKeybindings()` 延迟 0.5 秒扫描动作槽 1..180，把可识别的 macro/spell 记录为 `Fuyutsui.keybindings[spellID] = {key, slot, keycode, icon, name}`。这是游戏内诊断缓存；Shigure 的实际发送映射来自 `ClassMacros` 转换出的 keymap，而不是读取该 Lua 表。插件自己的安全宏按钮先按 7 种修饰键×39 个基础键生成 273 槽，再追加 7×11 个导航/减号/方向键，共 350 个顺序槽。
+> `ReadKeybindings()` 延迟 0.5 秒扫描动作槽 1..180，把可识别的 macro/spell 记录为 `Fuyutsui.keybindings[spellID] = {key, slot, keycode, icon, name}`。这是游戏内诊断缓存；Shigure 的实际发送映射来自 `ClassMacros` 转换出的 keymap，而不是读取该 Lua 表。插件自己的安全宏按钮使用 7 种修饰键×50 个基础键，共 350 个顺序槽。
 
 ## 范围与非范围
 
@@ -93,12 +93,11 @@ OnEnable / UPDATE_BINDINGS / SPELLS_CHANGED / ACTIONBAR_*GRID
 
 ## 安全宏键池
 
-`core/macro.lua` 分两段生成固定键池：
+`core/macro.lua` 生成固定键池：
 
 - 修饰键顺序：`CTRL`、`ALT`、`SHIFT`、`ALT-CTRL`、`ALT-SHIFT`、`CTRL-SHIFT`、`ALT-CTRL-SHIFT`。
-- 第一段基础键 39 个，包括小键盘、F 键（无 F4）、标点和部分数字键，形成槽 1–273。
-- 第二段在末尾追加 `-`、`INSERT`、`DELETE`、`HOME`、`END`、`PAGEUP`、`PAGEDOWN`、`UP`、`DOWN`、`LEFT`、`RIGHT`，再乘 7 种修饰符，形成槽 274–350。不加反引号、`NUMPADENTER`。
-- 总容量 `273 + 7 × 11 = 350`。
+- 基础键 50 个：小键盘、F 键（无 F4）、标点、部分数字，以及末尾的 `-`、`INSERT`、`DELETE`、`HOME`、`END`、`PAGEUP`、`PAGEDOWN`、`UP`、`DOWN`、`LEFT`、`RIGHT`。不加反引号、`NUMPADENTER`。
+- 总容量 `7 × 50 = 350`。
 - 第 `i` 槽创建名为 `s{i}` 的 `SecureActionButtonTemplate`，通过 `SetOverrideBindingClick()` 绑定对应按键。
 
 宏体解析顺序：先查 `Fuyutsui.MacroBodies` 的命名宏体；字符串以 `/` 开头则原样使用；否则包装为 `/cast <字符串>`。
@@ -134,7 +133,7 @@ OnEnable / UPDATE_BINDINGS / SPELLS_CHANGED / ACTIONBAR_*GRID
 
 ## 修改影响
 
-- 修改 `modifiers`、`keys`、`extraKeys` 或三段展开顺序时，必须同步 [[40-跨项目/03-Shigure-ClassMacros到keymap与按键契约]] 与 Shigure 转换器。
+- 修改 `modifiers`、`keys` 或三段展开顺序时，必须同步 [[40-跨项目/03-Shigure-ClassMacros到keymap与按键契约]] 与 Shigure 转换器。
 - 修改 `ClassMacros` 后使用 Shigure 的配置/宏同步流程，见 [[30-Shigure/09-Shigure-Fuyutsui配置宏编辑与同步]]。
 - 修复动作条宏识别时应按 WoW 当前 API 先解析宏信息/宏体或宏所示技能，再调用 Spell API。
 - 若要让游戏内缓存成为外部契约，需新增明确序列化与版本字段；当前没有这条链路。

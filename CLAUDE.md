@@ -98,7 +98,7 @@ wow_process.txt 目标游戏进程名列表；构建时复制，运行期间每�
 - **DynamicSpells**：每项占 30 热键槽位
 - **StaticSpells / SpecialSpells**：顺序数组条目（`ArrayEntry`：text + 可选行尾注释）；空字符串保留槽位
 
-保存后 [Infrastructure/FuyutsuiKeymapConverter.cs](Infrastructure/FuyutsuiKeymapConverter.cs)`.UpdateFromClassMacros` 将 Lua 宏表按 dynamic（每项 30 槽）→ static → special 顺序转换为 `keymap/*.json`，把宏槽位映射到热键池（先 7 修饰符 × 39 键 = 273，再追加 7 × 11 个导航/减号/方向键 = 350 组合/职业；不含 F4）。`DeriveSpellName` 解析 WoW 宏文本提取技能名。
+保存后 [Infrastructure/FuyutsuiKeymapConverter.cs](Infrastructure/FuyutsuiKeymapConverter.cs)`.UpdateFromClassMacros` 将 Lua 宏表按 dynamic（每项 30 槽）→ static → special 顺序转换为 `keymap/*.json`，把宏槽位映射到热键池（7 修饰符 × 50 键 = 350 组合/职业；不含 F4）。`DeriveSpellName` 解析 WoW 宏文本提取技能名。
 
 ### UI 编辑器
 

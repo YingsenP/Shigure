@@ -15,12 +15,7 @@ local keys = {
     "NUMPADDECIMAL", "NUMPADPLUS", "NUMPADMINUS", "NUMPADMULTIPLY", "NUMPADDIVIDE",
     "F1", "F2", "F3", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
     ",", ".", "/", ";", "'", "[", "]", "\\",
-    "7", "8", "9", "0", "="
-}
-
--- 接在原 273 槽之后，避免把新主键插入 keys 导致后续修饰组错位。
--- 不含 F4（ALT-F4 关客户端）、反引号、NUMPADENTER。
-local extraKeys = {
+    "7", "8", "9", "0", "=",
     "-", "INSERT", "DELETE", "HOME", "END", "PAGEUP", "PAGEDOWN",
     "UP", "DOWN", "LEFT", "RIGHT"
 }
@@ -29,12 +24,6 @@ do
     local i = 1
     for _, m in ipairs(modifiers) do
         for _, k in ipairs(keys) do
-            macroKind[i] = m .. "-" .. k
-            i = i + 1
-        end
-    end
-    for _, m in ipairs(modifiers) do
-        for _, k in ipairs(extraKeys) do
             macroKind[i] = m .. "-" .. k
             i = i + 1
         end
