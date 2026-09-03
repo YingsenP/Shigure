@@ -882,28 +882,19 @@ public sealed class ModuleEditorControl : UserControl
             ReadOnly = true,
             SortMode = DataGridViewColumnSortMode.NotSortable
         });
-        _rulesGrid.Columns.Add(new DataGridViewTextBoxColumn
+        _rulesGrid.Columns.Add(new DataGridViewButtonColumn
         {
             Name = RuleCommentColumnName,
-            HeaderText = "注释",
-            Width = 64,
-            MinimumWidth = 40,
+            HeaderText = string.Empty,
+            Text = string.Empty,
+            UseColumnTextForButtonValue = true,
+            Width = 32,
+            MinimumWidth = 32,
             AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
-            ReadOnly = true,
-            SortMode = DataGridViewColumnSortMode.NotSortable,
-            HeaderCell = new DataGridViewColumnHeaderCell
-            {
-                Value = "注释",
-                Style = new DataGridViewCellStyle
-                {
-                    Alignment = DataGridViewContentAlignment.MiddleCenter
-                }
-            },
-            DefaultCellStyle = new DataGridViewCellStyle
-            {
-                Alignment = DataGridViewContentAlignment.MiddleCenter
-            }
+            Resizable = DataGridViewTriState.False,
+            FlatStyle = FlatStyle.Flat
         });
+        _rulesGrid.Columns[RuleCommentColumnName]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
         AddRuleIconColumn("MoveUp", "▲", "上移 (Alt+↑)");
         AddRuleIconColumn("MoveDown", "▼", "下移 (Alt+↓)");
         AddRuleIconColumn("Copy", "⧉", "复制到下一行 (Ctrl+D)");
@@ -1014,7 +1005,8 @@ public sealed class ModuleEditorControl : UserControl
             {
                 Alignment = DataGridViewContentAlignment.MiddleCenter,
                 NullValue = null,
-                BackColor = UiTheme.Surface
+                BackColor = UiTheme.Surface,
+                Padding = new Padding(13, 6, 13, 6)
             }
         };
 
@@ -2951,7 +2943,7 @@ public sealed class ModuleEditorControl : UserControl
             return;
         }
 
-        var size = Math.Max(16, Math.Min(e.CellBounds.Width, e.CellBounds.Height) - 10);
+        var size = (int)Math.Round(Math.Max(16, Math.Min(e.CellBounds.Width, e.CellBounds.Height) - 10) * 0.7f);
         UiIconCatalog.Draw(e.Graphics, iconName, new Rectangle(
             e.CellBounds.Left + (e.CellBounds.Width - size) / 2,
             e.CellBounds.Top + (e.CellBounds.Height - size) / 2,

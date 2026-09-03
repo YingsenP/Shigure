@@ -970,7 +970,7 @@ public sealed class StatusForm : Form
             AutoSize = false,
             Size = new Size(192, 39),
             Font = new Font(Font.FontFamily, 10F, FontStyle.Regular),
-            Margin = new Padding(0, 0, 0, 1),
+            Margin = new Padding(0, 0, 0, 8),
             Cursor = Cursors.Hand,
             TabStop = true,
             AccessibleName = text

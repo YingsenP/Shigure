@@ -1280,6 +1280,7 @@ internal static class UiTheme
                 foreach (DataGridViewColumn column in grid.Columns)
                 {
                     if (column.AutoSizeMode == DataGridViewAutoSizeColumnMode.Fill
+                        || column.Resizable == DataGridViewTriState.False
                         || !widths.TryGetValue(column.Name, out var width)
                         || width <= 0)
                     {
@@ -1300,6 +1301,7 @@ internal static class UiTheme
             if (isInitializing
                 || isApplying
                 || e.Column.AutoSizeMode == DataGridViewAutoSizeColumnMode.Fill
+                || e.Column.Resizable == DataGridViewTriState.False
                 || string.IsNullOrWhiteSpace(e.Column.Name))
             {
                 return;
