@@ -19,6 +19,12 @@ public sealed class MainForm : Form, IMessageFilter
     private const int ResizeGripSize = 8;
     private const int RoundedCornerResizeDebounceMs = 80;
     private const int WowProcessMonitorIntervalMs = 10_000;
+    private const int DefaultMainBarLongEdge = 476;
+    private const int DefaultMainBarShortEdge = 64;
+    private const int MinimumMainBarLongEdge = 294;
+    private const int MinimumMainBarShortEdge = 56;
+    private const int MainBarSizeVersion = 1;
+    private const int TopBarButtonGap = 12;
     private const string HeaderIconResourcePath = "Assets.arasaka-icon-transparent.png";
     private const string ModuleWebsiteUrl = "https://www.shigure.club";
     private static readonly Color DefaultHeaderIconColor = Color.White;
@@ -72,8 +78,7 @@ public sealed class MainForm : Form, IMessageFilter
     private string? _lastModuleSelectorSignature;
     private bool _usesDwmRoundedCorners = true;
 
-    private readonly List<Button> _enableButtons = [];
-    private Button _verticalEnableButton = null!;
+    private readonly List<TopBarIconButton> _enableButtons = [];
     private readonly List<PictureBox> _headerIcons = [];
     private readonly List<Label> _titleLabels = [];
     private readonly List<Label> _runtimeStatusLabels = [];
@@ -572,8 +577,8 @@ public sealed class MainForm : Form, IMessageFilter
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.None;
         TopMost = true;
-        ClientSize = new Size(680, 64);
-        MinimumSize = new Size(420, 56);
+        ClientSize = new Size(DefaultMainBarLongEdge, DefaultMainBarShortEdge);
+        MinimumSize = new Size(MinimumMainBarLongEdge, MinimumMainBarShortEdge);
         BackColor = Color.FromArgb(18, 21, 26);
         ForeColor = UiTheme.Text;
         Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
@@ -755,20 +760,19 @@ public sealed class MainForm : Form, IMessageFilter
             Margin = new Padding(0)
         };
 
-        var enableButton = CreateTopBarButton(vertical ? "开\r\n启" : "开关", UiTheme.Field, UiTheme.Text, vertical);
+        var enableButton = CreateTopBarIconButton("play-fill", UiTheme.Field, UiTheme.Text, vertical);
         enableButton.Click += (_, _) => ToggleEnabled();
-        var settingsButton = CreateTopBarButton(vertical ? "设\r\n置" : "设置", UiTheme.Field, UiTheme.Text, vertical);
+        _settingsToolTip.SetToolTip(enableButton, "开启");
+        var settingsButton = CreateTopBarIconButton("gear-wide-connected", UiTheme.Field, UiTheme.Text, vertical);
         settingsButton.Click += (_, _) => ShowSettingsView();
+        _settingsToolTip.SetToolTip(settingsButton, "设置");
         var closeButton = CreateTopBarButton(vertical ? "X" : "✕", UiTheme.Field, UiTheme.Muted, vertical);
         closeButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(196, 43, 28);
         closeButton.FlatAppearance.MouseDownBackColor = Color.FromArgb(153, 27, 21);
         closeButton.Click += (_, _) => Close();
+        _settingsToolTip.SetToolTip(closeButton, "关闭");
 
         _enableButtons.Add(enableButton);
-        if (vertical)
-        {
-            _verticalEnableButton = enableButton;
-        }
         buttons.Controls.AddRange([enableButton, settingsButton, closeButton]);
         return buttons;
     }
@@ -2050,9 +2054,8 @@ public sealed class MainForm : Form, IMessageFilter
         UpdateLogicStatusLabel(snapshot.Enabled);
         foreach (var enableButton in _enableButtons)
         {
-            enableButton.Text = enableButton == _verticalEnableButton
-                ? snapshot.Enabled ? "关\r\n闭" : "开\r\n启"
-                : snapshot.Enabled ? "关闭" : "开启";
+            enableButton.IconName = snapshot.Enabled ? "stop-fill" : "play-fill";
+            _settingsToolTip.SetToolTip(enableButton, snapshot.Enabled ? "关闭" : "开启");
         }
         UpdateTrayToggleMenuItem(running: true);
 
@@ -2633,6 +2636,8 @@ public sealed class MainForm : Form, IMessageFilter
 
     private void ApplyCachedWindowState()
     {
+        MigrateMainBarWindowSizeIfNeeded();
+
         var cachedLayout = ParseMainWindowLayout(_uiCache.MainWindowLayout);
         SetMainWindowLayout(cachedLayout, persist: false);
         _closeButtonBehavior = ParseCloseButtonBehavior(_uiCache.CloseButtonBehavior);
@@ -2652,6 +2657,42 @@ public sealed class MainForm : Form, IMessageFilter
 
         _statusForm.ApplyCachedBounds(_uiCache.SettingsWindowBounds);
         _statusForm.ApplyCachedPage(_uiCache.SelectedSettingsPage);
+    }
+
+    private void MigrateMainBarWindowSizeIfNeeded()
+    {
+        if (_uiCache.MainBarSizeVersion >= MainBarSizeVersion)
+        {
+            return;
+        }
+
+        // 顶栏默认宽度从 680 缩到 476 后，旧缓存尺寸会盖住新默认值；只缩窄长边，保留位置与短边。
+        ScaleMainBarLongEdge(_uiCache.HorizontalMainWindowBounds, vertical: false);
+        ScaleMainBarLongEdge(_uiCache.VerticalMainWindowBounds, vertical: true);
+        var legacyLayout = ParseMainWindowLayout(_uiCache.MainWindowLayout);
+        ScaleMainBarLongEdge(_uiCache.MainWindowBounds, vertical: legacyLayout == MainWindowLayout.Vertical);
+        _uiCache.MainBarSizeVersion = MainBarSizeVersion;
+    }
+
+    private static void ScaleMainBarLongEdge(WindowBounds? bounds, bool vertical)
+    {
+        if (bounds is null)
+        {
+            return;
+        }
+
+        if (vertical)
+        {
+            bounds.Height = Math.Max(
+                MinimumMainBarLongEdge,
+                (int)Math.Round(bounds.Height * 0.7));
+        }
+        else
+        {
+            bounds.Width = Math.Max(
+                MinimumMainBarLongEdge,
+                (int)Math.Round(bounds.Width * 0.7));
+        }
     }
 
     private void SaveUiCache()
@@ -2680,6 +2721,7 @@ public sealed class MainForm : Form, IMessageFilter
 
         _uiCache.MainWindowLayout = _mainWindowLayout.ToString();
         _uiCache.CloseButtonBehavior = _closeButtonBehavior.ToString();
+        _uiCache.MainBarSizeVersion = MainBarSizeVersion;
         _uiCache.ToggleKey = _toggleKeyName;
         _uiCache.SelectedModuleId = _selectedModuleId;
         UiCacheStore.Save(_uiCache);
@@ -2986,8 +3028,24 @@ public sealed class MainForm : Form, IMessageFilter
     private static void ConfigureTopBarButton(Button button)
     {
         button.AutoSize = false;
-        button.Size = new Size(88, 36);
-        button.Padding = new Padding(4, 1, 4, 1);
+        button.Size = new Size(36, 36);
+        button.Padding = new Padding(0);
+    }
+
+    private static TopBarIconButton CreateTopBarIconButton(
+        string iconName,
+        Color backColor,
+        Color foreColor,
+        bool vertical)
+    {
+        var button = new TopBarIconButton();
+        UiTheme.StyleButton(button, string.Empty, backColor, foreColor);
+        button.IconName = iconName;
+        ConfigureTopBarButton(button);
+        button.Margin = vertical
+            ? new Padding(0, TopBarButtonGap, 0, 0)
+            : new Padding(TopBarButtonGap, 0, 0, 0);
+        return button;
     }
 
     private static Button CreateTopBarButton(string text, Color backColor, Color foreColor, bool vertical)
@@ -3005,8 +3063,9 @@ public sealed class MainForm : Form, IMessageFilter
         }
 
         ConfigureTopBarButton(button);
-        button.Size = vertical ? new Size(36, 88) : new Size(88, 36);
-        button.Margin = vertical ? new Padding(0, 6, 0, 0) : new Padding(6, 0, 0, 0);
+        button.Margin = vertical
+            ? new Padding(0, TopBarButtonGap, 0, 0)
+            : new Padding(TopBarButtonGap, 0, 0, 0);
         return button;
     }
 
@@ -3032,7 +3091,9 @@ public sealed class MainForm : Form, IMessageFilter
         {
             MinimumSize = Size.Empty;
             ClientSize = new Size(previousClientSize.Height, previousClientSize.Width);
-            MinimumSize = vertical ? new Size(56, 420) : new Size(420, 56);
+            MinimumSize = vertical
+                ? new Size(MinimumMainBarShortEdge, MinimumMainBarLongEdge)
+                : new Size(MinimumMainBarLongEdge, MinimumMainBarShortEdge);
             _horizontalTopBar.Visible = !vertical;
             _verticalTopBar.Visible = vertical;
             (vertical ? _verticalTopBar : _horizontalTopBar).BringToFront();
@@ -3262,6 +3323,73 @@ public sealed class MainForm : Form, IMessageFilter
                 return;
             }
             DrawRotatedText(e.Graphics, ClientRectangle, _displayText, Font, ForeColor);
+        }
+    }
+
+    private sealed class TopBarIconButton : Button
+    {
+        private string _iconName = string.Empty;
+        private bool _suppressBaseText;
+
+        [System.ComponentModel.DesignerSerializationVisibility(
+            System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public string IconName
+        {
+            get => _iconName;
+            set
+            {
+                var next = value ?? string.Empty;
+                if (string.Equals(_iconName, next, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _iconName = next;
+                Invalidate();
+            }
+        }
+
+        [System.Diagnostics.CodeAnalysis.AllowNull]
+        public override string Text
+        {
+            get => _suppressBaseText ? string.Empty : base.Text;
+            set => base.Text = string.Empty;
+        }
+
+        protected override void OnPaint(PaintEventArgs pevent)
+        {
+            _suppressBaseText = true;
+            try
+            {
+                base.OnPaint(pevent);
+            }
+            finally
+            {
+                _suppressBaseText = false;
+            }
+
+            if (string.IsNullOrEmpty(_iconName) || ClientSize.Width <= 1 || ClientSize.Height <= 1)
+            {
+                return;
+            }
+
+            var scale = Math.Max(1f, DeviceDpi / 96f);
+            var iconSize = Math.Max(14, (int)Math.Round(16 * scale));
+            iconSize = Math.Min(iconSize, Math.Min(ClientSize.Width, ClientSize.Height) - 8);
+            if (iconSize <= 0)
+            {
+                return;
+            }
+
+            UiIconCatalog.Draw(
+                pevent.Graphics,
+                _iconName,
+                new Rectangle(
+                    (ClientSize.Width - iconSize) / 2,
+                    (ClientSize.Height - iconSize) / 2,
+                    iconSize,
+                    iconSize),
+                ForeColor);
         }
     }
 
