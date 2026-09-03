@@ -87,6 +87,31 @@ public sealed class ClassMacrosEditorControl : UserControl
         root.Controls.Add(BuildEditor(), 1, 0);
     }
 
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (keyData == (Keys.Control | Keys.S))
+        {
+            if (_saveButton.Enabled)
+            {
+                _saveButton.PerformClick();
+            }
+
+            return true;
+        }
+
+        if (keyData == Keys.F5)
+        {
+            if (_reloadButton.Enabled)
+            {
+                _reloadButton.PerformClick();
+            }
+
+            return true;
+        }
+
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
     private Control BuildSidebar()
     {
         var panel = new UiCardPanel
@@ -186,6 +211,8 @@ public sealed class ClassMacrosEditorControl : UserControl
         _saveButton.Margin = new Padding(0);
         _reloadButton.Click += (_, _) => ReloadFromAddon();
         _saveButton.Click += async (_, _) => await SaveAndUpdateAsync();
+        _toolTip.SetToolTip(_reloadButton, "从项目 Fuyutsui 重新加载宏 (F5)");
+        _toolTip.SetToolTip(_saveButton, "保存宏并同步游戏 (Ctrl+S)");
         actions.Controls.Add(_reloadButton);
         actions.Controls.Add(_saveButton);
         actionRow.Controls.Add(BuildFooterInfo(), 0, 0);
