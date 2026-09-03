@@ -98,6 +98,17 @@ public sealed class StatusForm : Form
         SOFTWARE.
         """;
 
+    private const string AboutBootstrapIconsAttributionText =
+        """
+        Bootstrap Icons
+
+        https://github.com/twbs/icons
+
+        Copyright (c) 2019-2024 The Bootstrap Authors
+
+        界面导航与模块编辑中的部分图标来自该项目，采用 MIT License。
+        """;
+
     private static readonly IReadOnlyList<string> CurrentSeasonDungeonNames =
     [
         "烈毒之渊",
@@ -493,7 +504,7 @@ public sealed class StatusForm : Form
         AddNavItem(nav, SettingsPage.BossNumbers, SettingsNavIcon.BossNumbers, "首领", CreatePageShell("首领编号", "副本首领的序号、名称与扫描编号", BuildBossNumbersPage()));
         AddNavItem(nav, SettingsPage.CommonFields, SettingsNavIcon.CommonFields, "字段", CreatePageShell("常用字段", "模块条件可用的状态字段参考", BuildCommonFieldsPanel()));
         AddNavGroup(nav, "系统");
-        AddNavItem(nav, SettingsPage.About, SettingsNavIcon.About, "关于", CreatePageShell("关于", "应用信息、免责声明与许可证", _aboutHost));
+        AddNavItem(nav, SettingsPage.About, SettingsNavIcon.About, "关于", CreatePageShell("关于", "应用信息、免责声明、许可证与图标来源", _aboutHost));
         _aboutHost.Controls.Add(BuildAboutPanel());
 
         root.Controls.Add(navShell, 0, 0);
@@ -1199,13 +1210,14 @@ public sealed class StatusForm : Form
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             BackColor = Color.Transparent,
             ColumnCount = 1,
-            RowCount = 3,
+            RowCount = 4,
             Location = Point.Empty,
             Padding = new Padding(0),
             Margin = new Padding(0)
         };
         ApplyAboutCardWidth(panel);
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, AboutCardWidth));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -1295,6 +1307,7 @@ public sealed class StatusForm : Form
         panel.Controls.Add(infoCard, 0, 0);
         panel.Controls.Add(CreateAboutArticleCard("免责声明", AboutDisclaimerText), 0, 1);
         panel.Controls.Add(CreateAboutArticleCard("许可证", AboutMitLicenseText), 0, 2);
+        panel.Controls.Add(CreateAboutArticleCard("图标来源", AboutBootstrapIconsAttributionText), 0, 3);
         scrollHost.Controls.Add(panel);
         return scrollHost;
     }
@@ -2280,7 +2293,7 @@ public sealed class StatusForm : Form
                 iconSize,
                 iconSize);
             var iconColor = _isSelected ? UiTheme.Accent : _hovered ? UiTheme.Text : UiTheme.Muted;
-            DrawIcon(graphics, _icon, iconBounds, iconColor, scale);
+            UiIconCatalog.Draw(graphics, _icon, iconBounds, iconColor);
             graphics.SmoothingMode = oldSmoothingMode;
 
             var textLeft = iconBounds.Right + (int)Math.Round(12 * scale);
@@ -2317,125 +2330,6 @@ public sealed class StatusForm : Form
             }
         }
 
-        private static void DrawIcon(Graphics graphics, SettingsNavIcon icon, Rectangle bounds, Color color, float scale)
-        {
-            var x = bounds.Left;
-            var y = bounds.Top;
-            var w = bounds.Width;
-            var h = bounds.Height;
-            using var pen = new Pen(color, Math.Max(1.4f, 1.55f * scale))
-            {
-                StartCap = LineCap.Round,
-                EndCap = LineCap.Round,
-                LineJoin = LineJoin.Round
-            };
-            using var brush = new SolidBrush(color);
-
-            switch (icon)
-            {
-                case SettingsNavIcon.General:
-                    graphics.DrawEllipse(pen, x + w * 0.22f, y + h * 0.22f, w * 0.56f, h * 0.56f);
-                    graphics.DrawEllipse(pen, x + w * 0.42f, y + h * 0.42f, w * 0.16f, h * 0.16f);
-                    for (var i = 0; i < 8; i++)
-                    {
-                        var angle = i * Math.PI / 4;
-                        var cx = x + w / 2f;
-                        var cy = y + h / 2f;
-                        graphics.DrawLine(
-                            pen,
-                            cx + (float)Math.Cos(angle) * w * 0.32f,
-                            cy + (float)Math.Sin(angle) * h * 0.32f,
-                            cx + (float)Math.Cos(angle) * w * 0.43f,
-                            cy + (float)Math.Sin(angle) * h * 0.43f);
-                    }
-
-                    break;
-                case SettingsNavIcon.Config:
-                    DrawSlider(graphics, pen, brush, x, y + h * 0.28f, w, 0.34f);
-                    DrawSlider(graphics, pen, brush, x, y + h * 0.50f, w, 0.68f);
-                    DrawSlider(graphics, pen, brush, x, y + h * 0.72f, w, 0.46f);
-                    break;
-                case SettingsNavIcon.Macros:
-                    graphics.DrawLines(pen, [
-                        new PointF(x + w * 0.34f, y + h * 0.22f),
-                        new PointF(x + w * 0.12f, y + h * 0.50f),
-                        new PointF(x + w * 0.34f, y + h * 0.78f)]);
-                    graphics.DrawLines(pen, [
-                        new PointF(x + w * 0.66f, y + h * 0.22f),
-                        new PointF(x + w * 0.88f, y + h * 0.50f),
-                        new PointF(x + w * 0.66f, y + h * 0.78f)]);
-                    graphics.DrawLine(pen, x + w * 0.57f, y + h * 0.18f, x + w * 0.43f, y + h * 0.82f);
-                    break;
-                case SettingsNavIcon.Modules:
-                    for (var row = 0; row < 2; row++)
-                    {
-                        for (var column = 0; column < 2; column++)
-                        {
-                            graphics.DrawRectangle(
-                                pen,
-                                x + w * (0.12f + column * 0.46f),
-                                y + h * (0.12f + row * 0.46f),
-                                w * 0.30f,
-                                h * 0.30f);
-                        }
-                    }
-
-                    break;
-                case SettingsNavIcon.Status:
-                    graphics.DrawLines(pen, [
-                        new PointF(x + w * 0.08f, y + h * 0.55f),
-                        new PointF(x + w * 0.28f, y + h * 0.55f),
-                        new PointF(x + w * 0.40f, y + h * 0.24f),
-                        new PointF(x + w * 0.56f, y + h * 0.78f),
-                        new PointF(x + w * 0.69f, y + h * 0.45f),
-                        new PointF(x + w * 0.92f, y + h * 0.45f)]);
-                    break;
-                case SettingsNavIcon.Party:
-                    graphics.DrawEllipse(pen, x + w * 0.36f, y + h * 0.10f, w * 0.28f, h * 0.28f);
-                    graphics.DrawArc(pen, x + w * 0.20f, y + h * 0.40f, w * 0.60f, h * 0.50f, 190, 160);
-                    graphics.DrawEllipse(pen, x + w * 0.08f, y + h * 0.28f, w * 0.20f, h * 0.20f);
-                    graphics.DrawEllipse(pen, x + w * 0.72f, y + h * 0.28f, w * 0.20f, h * 0.20f);
-                    break;
-                case SettingsNavIcon.Logic:
-                    graphics.DrawLine(pen, x + w * 0.28f, y + h * 0.30f, x + w * 0.70f, y + h * 0.20f);
-                    graphics.DrawLine(pen, x + w * 0.28f, y + h * 0.36f, x + w * 0.70f, y + h * 0.72f);
-                    graphics.FillEllipse(brush, x + w * 0.14f, y + h * 0.24f, w * 0.22f, h * 0.22f);
-                    graphics.FillEllipse(brush, x + w * 0.64f, y + h * 0.10f, w * 0.22f, h * 0.22f);
-                    graphics.FillEllipse(brush, x + w * 0.64f, y + h * 0.64f, w * 0.22f, h * 0.22f);
-                    break;
-                case SettingsNavIcon.Logs:
-                    graphics.DrawRectangle(pen, x + w * 0.18f, y + h * 0.10f, w * 0.64f, h * 0.80f);
-                    graphics.DrawLine(pen, x + w * 0.32f, y + h * 0.34f, x + w * 0.68f, y + h * 0.34f);
-                    graphics.DrawLine(pen, x + w * 0.32f, y + h * 0.52f, x + w * 0.68f, y + h * 0.52f);
-                    graphics.DrawLine(pen, x + w * 0.32f, y + h * 0.70f, x + w * 0.58f, y + h * 0.70f);
-                    break;
-                case SettingsNavIcon.BossNumbers:
-                    graphics.DrawRectangle(pen, x + w * 0.12f, y + h * 0.12f, w * 0.76f, h * 0.76f);
-                    graphics.DrawLine(pen, x + w * 0.38f, y + h * 0.27f, x + w * 0.31f, y + h * 0.73f);
-                    graphics.DrawLine(pen, x + w * 0.65f, y + h * 0.27f, x + w * 0.58f, y + h * 0.73f);
-                    graphics.DrawLine(pen, x + w * 0.25f, y + h * 0.43f, x + w * 0.72f, y + h * 0.43f);
-                    graphics.DrawLine(pen, x + w * 0.22f, y + h * 0.59f, x + w * 0.69f, y + h * 0.59f);
-                    break;
-                case SettingsNavIcon.CommonFields:
-                    graphics.DrawRectangle(pen, x + w * 0.12f, y + h * 0.12f, w * 0.76f, h * 0.76f);
-                    graphics.DrawLine(pen, x + w * 0.34f, y + h * 0.12f, x + w * 0.34f, y + h * 0.88f);
-                    graphics.DrawLine(pen, x + w * 0.12f, y + h * 0.38f, x + w * 0.88f, y + h * 0.38f);
-                    graphics.DrawLine(pen, x + w * 0.12f, y + h * 0.63f, x + w * 0.88f, y + h * 0.63f);
-                    break;
-                case SettingsNavIcon.About:
-                    graphics.DrawEllipse(pen, x + w * 0.12f, y + h * 0.12f, w * 0.76f, h * 0.76f);
-                    graphics.FillEllipse(brush, x + w * 0.46f, y + h * 0.28f, w * 0.08f, h * 0.08f);
-                    graphics.DrawLine(pen, x + w * 0.50f, y + h * 0.47f, x + w * 0.50f, y + h * 0.70f);
-                    break;
-            }
-        }
-
-        private static void DrawSlider(Graphics graphics, Pen pen, Brush brush, float x, float y, float width, float knobPosition)
-        {
-            graphics.DrawLine(pen, x + width * 0.10f, y, x + width * 0.90f, y);
-            var knobSize = width * 0.14f;
-            graphics.FillEllipse(brush, x + width * knobPosition - knobSize / 2, y - knobSize / 2, knobSize, knobSize);
-        }
     }
 
     private sealed record BossNumberGroup(string Title, IReadOnlyList<BossDungeon> Dungeons);

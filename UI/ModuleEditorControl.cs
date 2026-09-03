@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.Text.RegularExpressions;
 
@@ -2746,14 +2745,6 @@ public sealed class ModuleEditorControl : UserControl
             return;
         }
 
-        var icon = columnName switch
-        {
-            "MoveUp" => "▲",
-            "MoveDown" => "▼",
-            "Copy" => "⧉",
-            "InsertBlank" => "+",
-            _ => "×"
-        };
         var enabled = IsRuleIconEnabled(columnName, e.RowIndex);
         var color = columnName == "Delete" ? UiTheme.Danger : UiTheme.Muted;
         if (!enabled)
@@ -2761,7 +2752,7 @@ public sealed class ModuleEditorControl : UserControl
             color = Color.FromArgb(70, color);
         }
 
-        PaintGridIconCell(_rulesGrid, e, icon, color);
+        PaintGridIconCell(e, columnName, color);
     }
 
     private void PaintRuleCommentCell(DataGridViewCellPaintingEventArgs e)
@@ -2775,23 +2766,7 @@ public sealed class ModuleEditorControl : UserControl
 
         var hasComment = !string.IsNullOrWhiteSpace(CellText(_rulesGrid.Rows[e.RowIndex], RuleCommentColumnName));
         var color = hasComment ? UiTheme.Accent : UiTheme.Muted;
-        var left = e.CellBounds.Left + (e.CellBounds.Width - 19f) / 2f;
-        var top = e.CellBounds.Top + (e.CellBounds.Height - 18f) / 2f;
-        var oldSmoothingMode = e.Graphics.SmoothingMode;
-        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-
-        using var outlinePen = new Pen(color, 1.5f);
-        using var detailPen = new Pen(color, 1.2f);
-        e.Graphics.DrawRectangle(outlinePen, left + 4.5f, top + 1.5f, 13f, 15f);
-        e.Graphics.DrawLine(detailPen, left + 7.5f, top + 2.5f, left + 7.5f, top + 15.5f);
-        e.Graphics.DrawLine(outlinePen, left + 1.5f, top + 5f, left + 6f, top + 5f);
-        e.Graphics.DrawLine(outlinePen, left + 1.5f, top + 9f, left + 6f, top + 9f);
-        e.Graphics.DrawLine(outlinePen, left + 1.5f, top + 13f, left + 6f, top + 13f);
-        e.Graphics.DrawLine(detailPen, left + 10f, top + 6f, left + 15f, top + 6f);
-        e.Graphics.DrawLine(detailPen, left + 10f, top + 9.5f, left + 15f, top + 9.5f);
-        e.Graphics.DrawLine(detailPen, left + 10f, top + 13f, left + 14f, top + 13f);
-        e.Graphics.SmoothingMode = oldSmoothingMode;
-        e.Handled = true;
+        PaintGridNamedIcon(e, "Comment", color);
     }
 
     private void OnRulesGridCellMouseEnter(object? sender, DataGridViewCellEventArgs e)
@@ -2944,7 +2919,7 @@ public sealed class ModuleEditorControl : UserControl
             return;
         }
 
-        PaintGridIconCell(_adjustmentsGrid, e, "×", UiTheme.Danger);
+        PaintGridIconCell(e, "Delete", UiTheme.Danger);
     }
 
     private void OnFormulaAdjustmentsGridCellPainting(object? sender, DataGridViewCellPaintingEventArgs e)
@@ -2959,29 +2934,33 @@ public sealed class ModuleEditorControl : UserControl
             return;
         }
 
-        PaintGridIconCell(_formulaAdjustmentsGrid, e, "×", UiTheme.Danger);
+        PaintGridIconCell(e, "Delete", UiTheme.Danger);
     }
 
-    private static void PaintGridIconCell(DataGridView grid, DataGridViewCellPaintingEventArgs e, string icon, Color color)
+    private static void PaintGridIconCell(DataGridViewCellPaintingEventArgs e, string iconName, Color color)
     {
         e.Paint(e.CellBounds, DataGridViewPaintParts.Background | DataGridViewPaintParts.Border);
+        PaintGridNamedIcon(e, iconName, color);
+    }
+
+    private static void PaintGridNamedIcon(DataGridViewCellPaintingEventArgs e, string iconName, Color color)
+    {
         if (e.Graphics is null)
         {
             e.Handled = true;
             return;
         }
 
-        TextRenderer.DrawText(
-            e.Graphics,
-            icon,
-            grid.Font,
-            e.CellBounds,
-            color,
-            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+        var size = Math.Max(16, Math.Min(e.CellBounds.Width, e.CellBounds.Height) - 10);
+        UiIconCatalog.Draw(e.Graphics, iconName, new Rectangle(
+            e.CellBounds.Left + (e.CellBounds.Width - size) / 2,
+            e.CellBounds.Top + (e.CellBounds.Height - size) / 2,
+            size,
+            size), color);
         e.Handled = true;
     }
 
-    // 自绘 2×3 六点抓手, 不依赖字体里是否有 grip 字形; 新行不画。
+    // 新行不画拖拽抓手。
     private void PaintRuleDragHandle(DataGridViewCellPaintingEventArgs e)
     {
         e.Paint(e.CellBounds, DataGridViewPaintParts.Background | DataGridViewPaintParts.Border);
@@ -2991,19 +2970,8 @@ public sealed class ModuleEditorControl : UserControl
             return;
         }
 
-        var cx = e.CellBounds.Left + e.CellBounds.Width / 2;
-        var cy = e.CellBounds.Top + e.CellBounds.Height / 2;
         var color = _rulesGrid.Rows[e.RowIndex].Selected ? UiTheme.Text : UiTheme.Muted;
-        using var brush = new SolidBrush(color);
-        foreach (var x in new[] { cx - 4, cx })
-        {
-            foreach (var y in new[] { cy - 7, cy - 1, cy + 5 })
-            {
-                e.Graphics.FillEllipse(brush, x, y, 2, 2);
-            }
-        }
-
-        e.Handled = true;
+        PaintGridNamedIcon(e, "Drag", color);
     }
 
     private bool IsRuleIconEnabled(string columnName, int rowIndex)
