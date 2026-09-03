@@ -867,6 +867,10 @@ public sealed class MainForm : Form, IMessageFilter
 
     private Control BuildSettingsPanel()
     {
+        const int settingsContentWidth = 1200;
+        const int settingsActionButtonHeight = UiTheme.ActionButtonHeight;
+        const int primaryControlWidth = 200;
+
         var scrollHost = new Panel
         {
             Dock = DockStyle.Fill,
@@ -874,179 +878,52 @@ public sealed class MainForm : Form, IMessageFilter
             AutoScroll = true,
             Margin = new Padding(0)
         };
-        var panel = new TableLayoutPanel
+        var stack = new FlowLayoutPanel
         {
-            Dock = DockStyle.Top,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            BackColor = UiTheme.Surface,
-            ColumnCount = 2,
-            RowCount = 4,
-            Padding = new Padding(0),
-            Margin = new Padding(0)
-        };
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        const int settingsCardHeight = 190;
-        const int settingsCardGap = UiTheme.PageGap;
-        const int settingsActionButtonHeight = UiTheme.ActionButtonHeight;
-        for (var row = 0; row < panel.RowCount; row++)
-        {
-            var rowHeight = settingsCardHeight + (row == panel.RowCount - 1 ? 0 : settingsCardGap);
-            panel.RowStyles.Add(new RowStyle(SizeType.Absolute, rowHeight));
-        }
-
-        UiCardPanel CreateSettingsCard(int column, int row, int columnCount = 1)
-        {
-            return new UiCardPanel
-            {
-                Dock = DockStyle.Fill,
-                ColumnCount = columnCount,
-                RowCount = 4,
-                Padding = new Padding(UiTheme.CardPadding),
-                Margin = new Padding(
-                    column == 0 ? 0 : settingsCardGap / 2,
-                    0,
-                    column == 0 ? settingsCardGap / 2 : 0,
-                    row == panel.RowCount - 1 ? 0 : settingsCardGap)
-            };
-        }
-
-        static void ConfigureSettingsCardRows(UiCardPanel card, params int?[] heights)
-        {
-            card.RowStyles.Clear();
-            foreach (var height in heights)
-            {
-                card.RowStyles.Add(height is null
-                    ? new RowStyle(SizeType.Percent, 100)
-                    : new RowStyle(SizeType.Absolute, height.Value));
-            }
-        }
-
-        Label CreateTitle(string text) => UiTheme.CreateSectionTitle(Font, text);
-        Label CreateDescription(string text) => UiTheme.CreateDescription(text);
-        Label CreateSettingLabel(string text) => new()
-        {
-            Text = text,
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleLeft,
-            ForeColor = UiTheme.Muted,
-            Margin = new Padding(0)
-        };
-
-        var inputCard = CreateSettingsCard(column: 0, row: 0, columnCount: 2);
-        inputCard.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
-        inputCard.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        ConfigureSettingsCardRows(inputCard, 32, 30, settingsActionButtonHeight + 8, settingsActionButtonHeight + 8);
-        inputCard.Controls.Add(CreateTitle("输入与运行"), 0, 0);
-        inputCard.SetColumnSpan(inputCard.GetControlFromPosition(0, 0)!, 2);
-        inputCard.Controls.Add(CreateDescription("设置触发方式；修改后运行循环会自动重启"), 0, 1);
-        inputCard.SetColumnSpan(inputCard.GetControlFromPosition(0, 1)!, 2);
-
-        _toggleKeyButton = UiTheme.CreateButton("XBUTTON2", UiTheme.ButtonKind.Secondary);
-        _toggleKeyButton.AutoSize = false;
-        _toggleKeyButton.Size = new Size(190, settingsActionButtonHeight);
-        _toggleKeyButton.TextAlign = ContentAlignment.MiddleCenter;
-        _toggleKeyButton.Anchor = AnchorStyles.Left;
-        _toggleKeyButton.Margin = new Padding(0);
-        _toggleKeyButton.Click += (_, _) => BeginCaptureToggleKey();
-        _settingsToolTip.SetToolTip(_toggleKeyButton, "点击后按下新的键盘键或鼠标侧键");
-        inputCard.Controls.Add(CreateSettingLabel("触发键"), 0, 2);
-        inputCard.Controls.Add(_toggleKeyButton, 1, 2);
-
-        _modeComboBox = new UiDropDown();
-        UiTheme.StyleComboBox(_modeComboBox);
-        _modeComboBox.Items.AddRange(new object[] { "开关", "单击", "按住" });
-        _modeComboBox.SelectedIndex = 0;
-        _modeComboBox.Width = 190;
-        _modeComboBox.Anchor = AnchorStyles.Left;
-        _modeComboBox.Margin = new Padding(0);
-        _settingsToolTip.SetToolTip(_modeComboBox, "开关：按一次切换；单击：每次触发发送一次；按住：持续按下时运行");
-        inputCard.Controls.Add(CreateSettingLabel("发送模式"), 0, 3);
-        inputCard.Controls.Add(_modeComboBox, 1, 3);
-
-        var configCard = CreateSettingsCard(column: 1, row: 0);
-        ConfigureSettingsCardRows(configCard, 32, 30, null, settingsActionButtonHeight);
-        configCard.Controls.Add(CreateTitle("配置同步"), 0, 0);
-        configCard.Controls.Add(CreateDescription("从项目 Fuyutsui 生成 config/keymap，并同步到游戏"), 0, 1);
-        _configSourceLabel = CreateInfoLabel("项目目录是唯一配置源；尚未执行手动更新");
-        _configSourceLabel.Dock = DockStyle.Fill;
-        _configSourceLabel.AutoSize = false;
-        _configSourceLabel.AutoEllipsis = true;
-        _configSourceLabel.TextAlign = ContentAlignment.TopLeft;
-        _configSourceLabel.Margin = new Padding(0, 10, 0, 8);
-        _settingsToolTip.SetToolTip(_configSourceLabel, _configSourceLabel.Text);
-        configCard.Controls.Add(_configSourceLabel, 0, 2);
-        _updateConfigButton = UiTheme.CreateButton("更新配置", UiTheme.ButtonKind.Secondary);
-        _updateConfigButton.AutoSize = false;
-        _updateConfigButton.Size = new Size(122, settingsActionButtonHeight);
-        _updateConfigButton.Dock = DockStyle.Left;
-        _updateConfigButton.Margin = new Padding(0);
-        _updateConfigButton.Click += async (_, _) => await UpdateConfigFromProjectWithFeedbackAsync();
-        configCard.Controls.Add(_updateConfigButton, 0, 3);
-
-        var moduleCard = CreateSettingsCard(column: 0, row: 1, columnCount: 2);
-        moduleCard.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        moduleCard.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 132));
-        ConfigureSettingsCardRows(moduleCard, 32, 30, settingsActionButtonHeight, null);
-        moduleCard.Controls.Add(CreateTitle("模块选择"), 0, 0);
-        moduleCard.SetColumnSpan(moduleCard.GetControlFromPosition(0, 0)!, 2);
-        moduleCard.Controls.Add(CreateDescription("按实时职业与专精自动匹配，或手动指定模块"), 0, 1);
-        moduleCard.SetColumnSpan(moduleCard.GetControlFromPosition(0, 1)!, 2);
-        _moduleComboBox = new UiDropDown();
-        UiTheme.StyleComboBox(_moduleComboBox);
-        _moduleComboBox.Dock = DockStyle.Fill;
-        _moduleComboBox.Margin = new Padding(0, 0, 14, 0);
-        _settingsToolTip.SetToolTip(_moduleComboBox, "列表会根据当前游戏状态筛选可用模块");
-        moduleCard.Controls.Add(_moduleComboBox, 0, 2);
-        var refreshModulesButton = UiTheme.CreateButton("刷新模块", UiTheme.ButtonKind.Secondary);
-        refreshModulesButton.AutoSize = false;
-        refreshModulesButton.Dock = DockStyle.Fill;
-        refreshModulesButton.Margin = new Padding(0);
-        refreshModulesButton.Click += async (_, _) =>
-        {
-            await ReloadModulesWithDependenciesAsync();
-            RefreshModuleSelector(_lastSnapshot, forceRefresh: false);
-            RefreshDefaultModuleSelector();
-        };
-        moduleCard.Controls.Add(refreshModulesButton, 1, 2);
-        var moduleInfoText = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            AutoSize = true,
             FlowDirection = FlowDirection.TopDown,
             WrapContents = false,
-            BackColor = Color.Transparent,
-            Margin = new Padding(0, 8, 0, 0)
+            BackColor = UiTheme.Surface,
+            Margin = new Padding(0),
+            Padding = new Padding(0),
+            Width = settingsContentWidth
         };
-        _moduleFilterLabel = CreateInfoLabel("筛选: 等待游戏状态");
-        _moduleCountLabel = CreateInfoLabel("可选模块: 0");
-        moduleInfoText.Controls.Add(_moduleFilterLabel);
-        moduleInfoText.Controls.Add(_moduleCountLabel);
-        moduleCard.Controls.Add(moduleInfoText, 0, 3);
-        moduleCard.SetColumnSpan(moduleInfoText, 2);
 
-        var getModulesCard = CreateSettingsCard(column: 1, row: 2);
-        ConfigureSettingsCardRows(getModulesCard, 32, 30, null, settingsActionButtonHeight);
-        getModulesCard.Controls.Add(CreateTitle("获取模块"), 0, 0);
-        getModulesCard.Controls.Add(CreateDescription("访问 Shigure 官网，浏览并获取可用模块"), 0, 1);
-
-        var moduleWebsiteLabel = CreateInfoLabel(ModuleWebsiteUrl);
-        moduleWebsiteLabel.Dock = DockStyle.Fill;
-        moduleWebsiteLabel.AutoSize = false;
-        moduleWebsiteLabel.AutoEllipsis = true;
-        moduleWebsiteLabel.TextAlign = ContentAlignment.TopLeft;
-        moduleWebsiteLabel.ForeColor = UiTheme.Accent;
-        moduleWebsiteLabel.Cursor = Cursors.Hand;
-        moduleWebsiteLabel.Margin = new Padding(0, 10, 0, 8);
-        moduleWebsiteLabel.Click += (_, _) => OpenModuleWebsite();
-        _settingsToolTip.SetToolTip(moduleWebsiteLabel, $"在默认浏览器中打开 {ModuleWebsiteUrl}");
-        getModulesCard.Controls.Add(moduleWebsiteLabel, 0, 2);
-
-        var moduleActions = new FlowLayoutPanel
+        Label CreateRowTitle(string text) => new()
         {
-            Dock = DockStyle.Fill,
-            AutoSize = false,
+            Text = text,
+            AutoSize = true,
+            ForeColor = UiTheme.Text,
+            BackColor = Color.Transparent,
+            Font = new Font(Font.FontFamily, 10F, FontStyle.Bold),
+            Margin = new Padding(0, 0, 0, 2)
+        };
+
+        Label CreateRowDescription(string text) => new()
+        {
+            Text = text,
+            AutoSize = true,
+            MaximumSize = new Size(720, 0),
+            ForeColor = UiTheme.Muted,
+            BackColor = Color.Transparent,
+            Margin = new Padding(0)
+        };
+
+        Label CreateSectionHeader(string text, bool first = false) => new()
+        {
+            Text = text,
+            AutoSize = true,
+            Font = new Font(Font.FontFamily, 12F, FontStyle.Bold),
+            ForeColor = UiTheme.Text,
+            BackColor = Color.Transparent,
+            Margin = new Padding(2, first ? 0 : 18, 0, 8)
+        };
+
+        FlowLayoutPanel CreateActionsHost() => new()
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
             BackColor = Color.Transparent,
@@ -1054,95 +931,172 @@ public sealed class MainForm : Form, IMessageFilter
             Padding = new Padding(0)
         };
 
-        var moduleWebsiteButtonColor = Color.FromArgb(252, 238, 10);
-        var openModuleWebsiteButton = UiTheme.CreateButton("获取模块", moduleWebsiteButtonColor, Color.Black);
-        openModuleWebsiteButton.AutoSize = false;
-        openModuleWebsiteButton.Size = new Size(160, settingsActionButtonHeight);
-        openModuleWebsiteButton.Margin = new Padding(0, 0, 10, 0);
-        openModuleWebsiteButton.Padding = new Padding(0, 2, 24, 2);
-        openModuleWebsiteButton.FlatAppearance.BorderColor = moduleWebsiteButtonColor;
-        openModuleWebsiteButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(255, 244, 64);
-        openModuleWebsiteButton.FlatAppearance.MouseDownBackColor = Color.FromArgb(220, 207, 8);
-        openModuleWebsiteButton.Paint += (_, e) => UiTheme.DrawExternalLinkIcon(
-            e.Graphics,
-            openModuleWebsiteButton.ClientRectangle,
-            openModuleWebsiteButton.Text,
-            openModuleWebsiteButton.Font,
-            openModuleWebsiteButton.ForeColor,
-            openModuleWebsiteButton.DeviceDpi / 96F);
-        openModuleWebsiteButton.Click += (_, _) => OpenModuleWebsite();
-
-        var openModuleDirectoryButton = UiTheme.CreateButton("打开模块目录", UiTheme.ButtonKind.Secondary);
-        openModuleDirectoryButton.AutoSize = false;
-        openModuleDirectoryButton.Size = new Size(160, settingsActionButtonHeight);
-        openModuleDirectoryButton.Margin = new Padding(0);
-        openModuleDirectoryButton.Click += (_, _) => OpenModuleDirectory();
-        _settingsToolTip.SetToolTip(openModuleDirectoryButton, "在资源管理器中打开本地模块目录");
-
-        moduleActions.Controls.Add(openModuleWebsiteButton);
-        moduleActions.Controls.Add(openModuleDirectoryButton);
-        getModulesCard.Controls.Add(moduleActions, 0, 3);
-
-        var defaultModuleCard = CreateSettingsCard(column: 1, row: 1);
-        ConfigureSettingsCardRows(defaultModuleCard, 32, 30, 48, settingsActionButtonHeight);
-        defaultModuleCard.Controls.Add(CreateTitle("默认模块"), 0, 0);
-        defaultModuleCard.Controls.Add(
-            CreateDescription("为指定环境设置自动选择时优先使用的模块"),
-            0,
-            1);
-
-        var defaultFilterRow = new TableLayoutPanel
+        void SizeActionControl(Control control, int width, int rightGap = 0)
         {
-            Dock = DockStyle.Fill,
-            ColumnCount = 4,
-            RowCount = 1,
+            control.AutoSize = false;
+            control.Dock = DockStyle.None;
+            control.Size = new Size(width, settingsActionButtonHeight);
+            control.Margin = new Padding(0, 0, rightGap, 0);
+        }
+
+        UiCardPanel CreateSettingRow(string title, Control description, Control actions)
+        {
+            var card = new UiCardPanel
+            {
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                ColumnCount = 2,
+                RowCount = 1,
+                Width = settingsContentWidth,
+                MinimumSize = new Size(settingsContentWidth, 0),
+                MaximumSize = new Size(settingsContentWidth, 0),
+                Padding = new Padding(UiTheme.CardPadding, 14, UiTheme.CardPadding, 14),
+                Margin = new Padding(0, 0, 0, UiTheme.PageGap)
+            };
+            card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            card.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            card.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+            var text = new FlowLayoutPanel
+            {
+                AutoSize = true,
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.TopDown,
+                WrapContents = false,
+                BackColor = Color.Transparent,
+                Margin = new Padding(0),
+                Padding = new Padding(0)
+            };
+            text.Controls.Add(CreateRowTitle(title));
+            text.Controls.Add(description);
+
+            actions.Margin = new Padding(24, 0, 0, 0);
+            // Anchor.None：在自动增高的行里垂直居中，并落在右侧 AutoSize 列。
+            actions.Anchor = AnchorStyles.None;
+            card.Controls.Add(text, 0, 0);
+            card.Controls.Add(actions, 1, 0);
+            return card;
+        }
+
+        stack.Controls.Add(CreateSectionHeader("输入与运行", first: true));
+
+        _toggleKeyButton = UiTheme.CreateButton("XBUTTON2", UiTheme.ButtonKind.Secondary);
+        SizeActionControl(_toggleKeyButton, primaryControlWidth);
+        _toggleKeyButton.TextAlign = ContentAlignment.MiddleCenter;
+        _toggleKeyButton.Click += (_, _) => BeginCaptureToggleKey();
+        _settingsToolTip.SetToolTip(_toggleKeyButton, "点击后按下新的键盘键或鼠标侧键");
+        var toggleActions = CreateActionsHost();
+        toggleActions.Controls.Add(_toggleKeyButton);
+        stack.Controls.Add(CreateSettingRow(
+            "触发键",
+            CreateRowDescription("点击后按下新的键盘键或鼠标侧键；修改后运行循环会自动重启"),
+            toggleActions));
+
+        _modeComboBox = new UiDropDown();
+        UiTheme.StyleComboBox(_modeComboBox);
+        _modeComboBox.Items.AddRange(new object[] { "开关", "单击", "按住" });
+        _modeComboBox.SelectedIndex = 0;
+        SizeActionControl(_modeComboBox, primaryControlWidth);
+        _settingsToolTip.SetToolTip(_modeComboBox, "开关：按一次切换；单击：每次触发发送一次；按住：持续按下时运行");
+        var modeActions = CreateActionsHost();
+        modeActions.Controls.Add(_modeComboBox);
+        stack.Controls.Add(CreateSettingRow(
+            "发送模式",
+            CreateRowDescription("开关：按一次切换；单击：每次触发发送一次；按住：持续按下时运行"),
+            modeActions));
+
+        stack.Controls.Add(CreateSectionHeader("配置同步"));
+
+        _configSourceLabel = CreateRowDescription("项目目录是唯一配置源；尚未执行手动更新");
+        _settingsToolTip.SetToolTip(_configSourceLabel, _configSourceLabel.Text);
+        _updateConfigButton = UiTheme.CreateButton("更新配置", UiTheme.ButtonKind.Secondary);
+        SizeActionControl(_updateConfigButton, 122);
+        _updateConfigButton.Click += async (_, _) => await UpdateConfigFromProjectWithFeedbackAsync();
+        var configActions = CreateActionsHost();
+        configActions.Controls.Add(_updateConfigButton);
+        stack.Controls.Add(CreateSettingRow(
+            "更新配置",
+            _configSourceLabel,
+            configActions));
+
+        stack.Controls.Add(CreateSectionHeader("模块"));
+
+        var moduleDescription = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
             BackColor = Color.Transparent,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
-        for (var i = 0; i < 4; i++)
+        moduleDescription.Controls.Add(CreateRowDescription("按实时职业与专精自动匹配，或手动指定模块"));
+        _moduleFilterLabel = CreateInfoLabel("筛选: 等待游戏状态");
+        _moduleCountLabel = CreateInfoLabel("可选模块: 0");
+        moduleDescription.Controls.Add(_moduleFilterLabel);
+        moduleDescription.Controls.Add(_moduleCountLabel);
+
+        _moduleComboBox = new UiDropDown();
+        UiTheme.StyleComboBox(_moduleComboBox);
+        SizeActionControl(_moduleComboBox, 260, rightGap: 10);
+        _settingsToolTip.SetToolTip(_moduleComboBox, "列表会根据当前游戏状态筛选可用模块");
+        var refreshModulesButton = UiTheme.CreateButton("刷新模块", UiTheme.ButtonKind.Secondary);
+        SizeActionControl(refreshModulesButton, 110);
+        refreshModulesButton.Click += async (_, _) =>
         {
-            defaultFilterRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
-        }
+            await ReloadModulesWithDependenciesAsync();
+            RefreshModuleSelector(_lastSnapshot, forceRefresh: false);
+            RefreshDefaultModuleSelector();
+        };
+        var moduleActions = CreateActionsHost();
+        moduleActions.Controls.Add(_moduleComboBox);
+        moduleActions.Controls.Add(refreshModulesButton);
+        stack.Controls.Add(CreateSettingRow("模块选择", moduleDescription, moduleActions));
 
         _defaultClassComboBox = CreateDefaultFilterComboBox();
         _defaultSpecComboBox = CreateDefaultFilterComboBox();
         _defaultHeroTalentComboBox = CreateDefaultFilterComboBox();
         _defaultPartyTypeComboBox = CreateDefaultFilterComboBox();
-        defaultFilterRow.Controls.Add(_defaultClassComboBox, 0, 0);
-        defaultFilterRow.Controls.Add(_defaultSpecComboBox, 1, 0);
-        defaultFilterRow.Controls.Add(_defaultHeroTalentComboBox, 2, 0);
-        defaultFilterRow.Controls.Add(_defaultPartyTypeComboBox, 3, 0);
+        foreach (var filter in new[]
+                 {
+                     _defaultClassComboBox,
+                     _defaultSpecComboBox,
+                     _defaultHeroTalentComboBox,
+                     _defaultPartyTypeComboBox
+                 })
+        {
+            SizeActionControl(filter, 120, rightGap: 8);
+        }
+
         _settingsToolTip.SetToolTip(_defaultClassComboBox, "职业");
         _settingsToolTip.SetToolTip(_defaultSpecComboBox, "专精");
         _settingsToolTip.SetToolTip(_defaultHeroTalentComboBox, "英雄天赋");
         _settingsToolTip.SetToolTip(_defaultPartyTypeComboBox, "队伍类型");
-        defaultModuleCard.Controls.Add(defaultFilterRow, 0, 2);
 
-        var defaultModuleRow = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 2,
-            RowCount = 1,
-            BackColor = Color.Transparent,
-            Margin = new Padding(0),
-            Padding = new Padding(0)
-        };
-        defaultModuleRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        defaultModuleRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 132));
+        var defaultFilterActions = CreateActionsHost();
+        defaultFilterActions.Controls.Add(_defaultClassComboBox);
+        defaultFilterActions.Controls.Add(_defaultSpecComboBox);
+        defaultFilterActions.Controls.Add(_defaultHeroTalentComboBox);
+        defaultFilterActions.Controls.Add(_defaultPartyTypeComboBox);
+        stack.Controls.Add(CreateSettingRow(
+            "默认筛选",
+            CreateRowDescription("为指定环境设置自动选择时优先使用的模块"),
+            defaultFilterActions));
+
         _defaultModuleComboBox = new UiDropDown();
         UiTheme.StyleComboBox(_defaultModuleComboBox);
-        _defaultModuleComboBox.Dock = DockStyle.Fill;
-        _defaultModuleComboBox.Margin = new Padding(0, 0, 14, 0);
+        SizeActionControl(_defaultModuleComboBox, 260, rightGap: 10);
         _settingsToolTip.SetToolTip(_defaultModuleComboBox, "列表按上方条件筛选；已保存的模块会标记为“当前默认”");
-        defaultModuleRow.Controls.Add(_defaultModuleComboBox, 0, 0);
         _setDefaultModuleButton = UiTheme.CreateButton("设为默认", UiTheme.ButtonKind.Secondary);
-        _setDefaultModuleButton.AutoSize = false;
-        _setDefaultModuleButton.Dock = DockStyle.Fill;
-        _setDefaultModuleButton.Margin = new Padding(0);
+        SizeActionControl(_setDefaultModuleButton, 110);
         _setDefaultModuleButton.Click += HandleSetDefaultModuleClick;
-        defaultModuleRow.Controls.Add(_setDefaultModuleButton, 1, 0);
-        defaultModuleCard.Controls.Add(defaultModuleRow, 0, 3);
+        var defaultModuleActions = CreateActionsHost();
+        defaultModuleActions.Controls.Add(_defaultModuleComboBox);
+        defaultModuleActions.Controls.Add(_setDefaultModuleButton);
+        stack.Controls.Add(CreateSettingRow(
+            "设为默认",
+            CreateRowDescription("将当前筛选条件下选中的模块保存为默认"),
+            defaultModuleActions));
 
         ResetDefaultClassOptions();
         ResetDefaultSpecOptions(null);
@@ -1165,116 +1119,87 @@ public sealed class MainForm : Form, IMessageFilter
         _defaultHeroTalentComboBox.SelectedIndexChanged += (_, _) => RefreshDefaultModuleSelector();
         _defaultPartyTypeComboBox.SelectedIndexChanged += (_, _) => RefreshDefaultModuleSelector();
 
-        var layoutCard = CreateSettingsCard(column: 0, row: 2);
-        ConfigureSettingsCardRows(layoutCard, 32, 30, null, settingsActionButtonHeight);
-        layoutCard.Controls.Add(CreateTitle("界面布局"), 0, 0);
-        layoutCard.Controls.Add(CreateDescription("选择主界面浮动条的排列方向"), 0, 1);
-        var layoutInfoLabel = CreateInfoLabel("切换时会交换主界面的宽高，控件与功能保持不变");
-        layoutInfoLabel.Dock = DockStyle.Fill;
-        layoutInfoLabel.AutoSize = false;
-        layoutInfoLabel.TextAlign = ContentAlignment.TopLeft;
-        layoutInfoLabel.Margin = new Padding(0, 10, 0, 8);
-        layoutCard.Controls.Add(layoutInfoLabel, 0, 2);
+        var moduleWebsiteLabel = CreateRowDescription(ModuleWebsiteUrl);
+        moduleWebsiteLabel.ForeColor = UiTheme.Accent;
+        moduleWebsiteLabel.Cursor = Cursors.Hand;
+        moduleWebsiteLabel.Click += (_, _) => OpenModuleWebsite();
+        _settingsToolTip.SetToolTip(moduleWebsiteLabel, $"在默认浏览器中打开 {ModuleWebsiteUrl}");
 
-        var layoutActions = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            BackColor = Color.Transparent,
-            Margin = new Padding(0),
-            Padding = new Padding(0)
-        };
+        var moduleWebsiteButtonColor = Color.FromArgb(252, 238, 10);
+        var openModuleWebsiteButton = UiTheme.CreateButton("获取模块", moduleWebsiteButtonColor, Color.Black);
+        SizeActionControl(openModuleWebsiteButton, 140, rightGap: 10);
+        openModuleWebsiteButton.Padding = new Padding(0, 2, 24, 2);
+        openModuleWebsiteButton.FlatAppearance.BorderColor = moduleWebsiteButtonColor;
+        openModuleWebsiteButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(255, 244, 64);
+        openModuleWebsiteButton.FlatAppearance.MouseDownBackColor = Color.FromArgb(220, 207, 8);
+        openModuleWebsiteButton.Paint += (_, e) => UiTheme.DrawExternalLinkIcon(
+            e.Graphics,
+            openModuleWebsiteButton.ClientRectangle,
+            openModuleWebsiteButton.Text,
+            openModuleWebsiteButton.Font,
+            openModuleWebsiteButton.ForeColor,
+            openModuleWebsiteButton.DeviceDpi / 96F);
+        openModuleWebsiteButton.Click += (_, _) => OpenModuleWebsite();
+
+        var openModuleDirectoryButton = UiTheme.CreateButton("打开模块目录", UiTheme.ButtonKind.Secondary);
+        SizeActionControl(openModuleDirectoryButton, 140);
+        openModuleDirectoryButton.Click += (_, _) => OpenModuleDirectory();
+        _settingsToolTip.SetToolTip(openModuleDirectoryButton, "在资源管理器中打开本地模块目录");
+
+        var getModuleActions = CreateActionsHost();
+        getModuleActions.Controls.Add(openModuleWebsiteButton);
+        getModuleActions.Controls.Add(openModuleDirectoryButton);
+        stack.Controls.Add(CreateSettingRow("获取模块", moduleWebsiteLabel, getModuleActions));
+
+        stack.Controls.Add(CreateSectionHeader("界面"));
+
         _horizontalLayoutButton = UiTheme.CreateButton("横向布局", UiTheme.ButtonKind.Secondary);
-        _horizontalLayoutButton.AutoSize = false;
-        _horizontalLayoutButton.Size = new Size(140, settingsActionButtonHeight);
-        _horizontalLayoutButton.Margin = new Padding(0, 0, 10, 0);
+        SizeActionControl(_horizontalLayoutButton, 120, rightGap: 10);
         _horizontalLayoutButton.Click += (_, _) => SetMainWindowLayout(MainWindowLayout.Horizontal);
         _verticalLayoutButton = UiTheme.CreateButton("纵向布局", UiTheme.ButtonKind.Secondary);
-        _verticalLayoutButton.AutoSize = false;
-        _verticalLayoutButton.Size = new Size(140, settingsActionButtonHeight);
-        _verticalLayoutButton.Margin = new Padding(0);
+        SizeActionControl(_verticalLayoutButton, 120);
         _verticalLayoutButton.Click += (_, _) => SetMainWindowLayout(MainWindowLayout.Vertical);
+        var layoutActions = CreateActionsHost();
         layoutActions.Controls.Add(_horizontalLayoutButton);
         layoutActions.Controls.Add(_verticalLayoutButton);
-        layoutCard.Controls.Add(layoutActions, 0, 3);
+        stack.Controls.Add(CreateSettingRow(
+            "界面布局",
+            CreateRowDescription("选择主界面浮动条的排列方向；切换时会交换宽高"),
+            layoutActions));
 
-        panel.Controls.Add(inputCard, 0, 0);
-        panel.Controls.Add(configCard, 1, 0);
-        panel.Controls.Add(moduleCard, 0, 1);
-        panel.Controls.Add(defaultModuleCard, 1, 1);
-        panel.Controls.Add(layoutCard, 0, 2);
-        panel.Controls.Add(getModulesCard, 1, 2);
-
-        var closeBehaviorCard = CreateSettingsCard(column: 1, row: 3);
-        ConfigureSettingsCardRows(closeBehaviorCard, 32, 30, null, settingsActionButtonHeight);
-        closeBehaviorCard.Controls.Add(CreateTitle("点击 X 时（关闭窗口按钮）"), 0, 0);
-        closeBehaviorCard.Controls.Add(CreateDescription("选择点击主界面关闭按钮后的行为"), 0, 1);
-
-        var closeBehaviorInfo = CreateInfoLabel("最小化后可通过系统栏图标重新打开；完全退出会停止运行");
-        closeBehaviorInfo.Dock = DockStyle.Fill;
-        closeBehaviorInfo.AutoSize = false;
-        closeBehaviorInfo.TextAlign = ContentAlignment.TopLeft;
-        closeBehaviorInfo.Margin = new Padding(0, 10, 0, 8);
-        closeBehaviorCard.Controls.Add(closeBehaviorInfo, 0, 2);
-
-        var closeBehaviorActions = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            BackColor = Color.Transparent,
-            Margin = new Padding(0),
-            Padding = new Padding(0)
-        };
         _minimizeToTrayButton = UiTheme.CreateButton("最小化到系统栏", UiTheme.ButtonKind.Secondary);
-        _minimizeToTrayButton.AutoSize = false;
-        _minimizeToTrayButton.Size = new Size(160, settingsActionButtonHeight);
-        _minimizeToTrayButton.Margin = new Padding(0, 0, 10, 0);
+        SizeActionControl(_minimizeToTrayButton, 150, rightGap: 10);
         _minimizeToTrayButton.Click += (_, _) => SetCloseButtonBehavior(CloseButtonBehavior.MinimizeToTray);
         _exitOnCloseButton = UiTheme.CreateButton("完全退出Shigure", UiTheme.ButtonKind.Secondary);
-        _exitOnCloseButton.AutoSize = false;
-        _exitOnCloseButton.Size = new Size(160, settingsActionButtonHeight);
-        _exitOnCloseButton.Margin = new Padding(0);
+        SizeActionControl(_exitOnCloseButton, 150);
         _exitOnCloseButton.Click += (_, _) => SetCloseButtonBehavior(CloseButtonBehavior.Exit);
+        var closeBehaviorActions = CreateActionsHost();
         closeBehaviorActions.Controls.Add(_minimizeToTrayButton);
         closeBehaviorActions.Controls.Add(_exitOnCloseButton);
-        closeBehaviorCard.Controls.Add(closeBehaviorActions, 0, 3);
-        panel.Controls.Add(closeBehaviorCard, 1, 3);
+        stack.Controls.Add(CreateSettingRow(
+            "点击 X 时",
+            CreateRowDescription("最小化后可通过系统栏图标重新打开；完全退出会停止运行"),
+            closeBehaviorActions));
 
-        var spellIconPackageCard = CreateSettingsCard(column: 0, row: 3);
-        ConfigureSettingsCardRows(spellIconPackageCard, 32, 30, null, settingsActionButtonHeight);
-        spellIconPackageCard.Controls.Add(CreateTitle("下载数据包"), 0, 0);
-        spellIconPackageCard.Controls.Add(
-            CreateDescription("从 GitHub Release 下载或更新技能/物品图标数据包；API 不可用时回退到发布页直链"),
-            0,
-            1);
+        stack.Controls.Add(CreateSectionHeader("资源"));
 
-        _spellIconPackageStatusLabel = CreateInfoLabel(string.Empty);
-        _spellIconPackageStatusLabel.Dock = DockStyle.Fill;
-        _spellIconPackageStatusLabel.AutoSize = false;
-        _spellIconPackageStatusLabel.AutoEllipsis = true;
-        _spellIconPackageStatusLabel.TextAlign = ContentAlignment.TopLeft;
-        _spellIconPackageStatusLabel.Margin = new Padding(0, 10, 0, 8);
-        spellIconPackageCard.Controls.Add(_spellIconPackageStatusLabel, 0, 2);
-
-        _downloadSpellIconPackageButton = UiTheme.CreateButton(
-            "下载数据包",
-            UiTheme.ButtonKind.Secondary);
-        _downloadSpellIconPackageButton.AutoSize = false;
-        _downloadSpellIconPackageButton.Size = new Size(140, settingsActionButtonHeight);
-        _downloadSpellIconPackageButton.Dock = DockStyle.Left;
-        _downloadSpellIconPackageButton.Margin = new Padding(0);
+        _spellIconPackageStatusLabel = CreateRowDescription(
+            "从 GitHub Release 下载或更新技能/物品图标数据包");
+        _downloadSpellIconPackageButton = UiTheme.CreateButton("下载数据包", UiTheme.ButtonKind.Secondary);
+        SizeActionControl(_downloadSpellIconPackageButton, 140);
         _downloadSpellIconPackageButton.Click += (_, _) => StartSpellIconPackageDownload();
-        spellIconPackageCard.Controls.Add(_downloadSpellIconPackageButton, 0, 3);
-        panel.Controls.Add(spellIconPackageCard, 0, 3);
+        var spellIconActions = CreateActionsHost();
+        spellIconActions.Controls.Add(_downloadSpellIconPackageButton);
+        stack.Controls.Add(CreateSettingRow(
+            "下载数据包",
+            _spellIconPackageStatusLabel,
+            spellIconActions));
 
         UpdateLayoutButtons();
         UpdateCloseBehaviorButtons();
         UpdateSpellIconPackageCard();
         RefreshDefaultModuleSelector();
-        scrollHost.Controls.Add(panel);
-        scrollHost.Resize += (_, _) => panel.Width = Math.Max(0, scrollHost.ClientSize.Width - SystemInformation.VerticalScrollBarWidth);
+        scrollHost.Controls.Add(stack);
         return scrollHost;
     }
 
