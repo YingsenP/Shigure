@@ -294,6 +294,7 @@ public sealed class StatusForm : Form
         UiTheme.SetListViewRowAccentResolver(_stateList, ResolveStateListAccent);
         UiTheme.SetListViewSubItemIconResolver(_auraList, ResolveStatusListIcon);
         UiTheme.SetListViewSubItemIconResolver(_spellList, ResolveStatusListIcon);
+        UiTheme.SetListViewRowAccentResolver(_spellList, ResolveSpellListAccent);
         SpellIconCatalog.CatalogChanged += OnSpellIconCatalogChanged;
     }
 
@@ -365,6 +366,14 @@ public sealed class StatusForm : Form
         => item.Tag is string category && category.Length > 0
             ? UiTheme.GetStateCategoryAccent(category)
             : null;
+
+    private static Color? ResolveSpellListAccent(ListViewItem item)
+        => item.Tag switch
+        {
+            StatusListIcon { IsItem: true } => UiTheme.GetStateCategoryAccent(ClassStateCatalog.CategoryItem),
+            StatusListIcon => UiTheme.GetStateCategoryAccent(ClassStateCatalog.CategoryState),
+            _ => null
+        };
 
     private void OnSpellIconCatalogChanged()
     {
@@ -1961,11 +1970,7 @@ public sealed class StatusForm : Form
             display.Type,
             UiTheme.FormatValue(value)
         });
-        if (display.IconId > 0)
-        {
-            row.Tag = new StatusListIcon(display.IconId, display.IsItem);
-        }
-
+        row.Tag = new StatusListIcon(display.IconId, display.IsItem);
         return row;
     }
 
