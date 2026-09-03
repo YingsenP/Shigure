@@ -51,6 +51,7 @@ public sealed class UnitEditorForm : Form
         new("按职责", UnitSelectorKind.UnitWithRole),
         new("按职责且不带某光环", UnitSelectorKind.UnitWithRoleWithoutAura),
         new("带某光环(持续最久)", UnitSelectorKind.UnitWithAura),
+        new("带某光环(持续最短)", UnitSelectorKind.UnitWithAuraShortest),
         new("带某驱散类型", UnitSelectorKind.UnitWithDispelType)
     ];
 
@@ -587,6 +588,7 @@ public sealed class UnitEditorForm : Form
                     role = reverse = auraSingle = true;
                     break;
                 case UnitSelectorKind.UnitWithAura:
+                case UnitSelectorKind.UnitWithAuraShortest:
                     auraSingle = true;
                     break;
                 case UnitSelectorKind.UnitWithDispelType:
@@ -935,6 +937,7 @@ public sealed class UnitEditorForm : Form
                 moduleUnit.AuraSpellIds = SingleAuraList();
                 break;
             case UnitSelectorKind.UnitWithAura:
+            case UnitSelectorKind.UnitWithAuraShortest:
                 moduleUnit.AuraSpellIds = SingleAuraList();
                 break;
             case UnitSelectorKind.UnitWithDispelType:
@@ -1108,7 +1111,8 @@ public sealed class UnitEditorForm : Form
             or UnitSelectorKind.HighestHealingAbsorbWithAura
             or UnitSelectorKind.HighestHealingAbsorbWithAuraCount
             or UnitSelectorKind.UnitWithRoleWithoutAura
-            or UnitSelectorKind.UnitWithAura;
+            or UnitSelectorKind.UnitWithAura
+            or UnitSelectorKind.UnitWithAuraShortest;
 
     private long? SelectedAura()
         => TryReadAuraSpellId(_auraBox.SelectedItem, out var spellId) ? spellId : null;

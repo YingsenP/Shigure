@@ -207,6 +207,10 @@ local stateBlockGetters = {
         ["天启骑士数量"] = function() return state.knightCount or 0 end,
         ["自律"] = function() return state.forbearance or 0 end,
         ["沸点"] = function() return state.boilingPoint or 0 end,
+        ["风暴涌流图腾"] = function() return state.stormSurgeTotem or 0 end,
+        ["风暴涌流图腾数量"] = function() return state.stormSurgeTotemCount or 0 end,
+        ["治疗之泉图腾"] = function() return state.healingStreamTotem or 0 end,
+        ["治疗之泉图腾数量"] = function() return state.healingStreamTotemCount or 0 end,
     },
     ["能量"] = {
         ["符文"] = function() return GetRunePixel() end,

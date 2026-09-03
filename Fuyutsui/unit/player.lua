@@ -551,3 +551,67 @@ function Fuyutsui:UpdateHeroicStrike(spellID) -- 英勇打击
         self:UpdateStateBlock("特殊", "英勇打击")
     end
 end
+
+-- 1267068 风暴涌流图腾 / 5394 治疗之泉图腾：每个独立 18 秒，可同时多个
+local TOTEM_DURATION = 18
+local totemSpellConfig = {
+    [1267068] = {
+        remainingKey = "stormSurgeTotem",
+        countKey = "stormSurgeTotemCount",
+        remainingName = "风暴涌流图腾",
+        countName = "风暴涌流图腾数量",
+    },
+    [5394] = {
+        remainingKey = "healingStreamTotem",
+        countKey = "healingStreamTotemCount",
+        remainingName = "治疗之泉图腾",
+        countName = "治疗之泉图腾数量",
+    },
+}
+local activeTotemExpires = {
+    [1267068] = {},
+    [5394] = {},
+}
+local totemTicker = nil
+
+local function RefreshActiveTotemState(self)
+    local now = GetTime()
+    local anyActive = false
+    for spellID, cfg in pairs(totemSpellConfig) do
+        local expires = activeTotemExpires[spellID]
+        while expires[1] and expires[1] <= now do
+            table.remove(expires, 1)
+        end
+
+        local count = #expires
+        local remaining = 0
+        if count > 0 then
+            remaining = math.max(0, expires[#expires] - now)
+            anyActive = true
+        end
+
+        state[cfg.remainingKey] = math.ceil(remaining) / 255
+        state[cfg.countKey] = count / 255
+        self:UpdateStateBlock("特殊", cfg.remainingName)
+        self:UpdateStateBlock("特殊", cfg.countName)
+    end
+
+    if not anyActive and totemTicker then
+        totemTicker:Cancel()
+        totemTicker = nil
+    end
+end
+
+function Fuyutsui:UpdateActiveTotemRemainingTime(spellID)
+    local cfg = totemSpellConfig[spellID]
+    if not cfg then return end
+
+    table.insert(activeTotemExpires[spellID], GetTime() + TOTEM_DURATION)
+    RefreshActiveTotemState(self)
+
+    if not totemTicker then
+        totemTicker = C_Timer.NewTicker(1, function()
+            RefreshActiveTotemState(self)
+        end)
+    end
+end

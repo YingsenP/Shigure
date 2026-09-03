@@ -19,6 +19,7 @@ internal static class UiTheme
     private static readonly Dictionary<int, Image?> ClassIcons = new();
     private static readonly Dictionary<(int ClassId, int SpecId), Image?> SpecIcons = new();
     private static readonly ConditionalWeakTable<ListView, Func<ListViewItem, int, Image?>> ListViewSubItemIcons = new();
+    private static readonly ConditionalWeakTable<ListView, Func<ListViewItem, Color?>> ListViewRowAccents = new();
     private static readonly ConditionalWeakTable<ListView, ListColumnLayoutState> ListColumnLayouts = new();
 
     private const int DwmwaUseImmersiveDarkMode = 20;
@@ -48,6 +49,12 @@ internal static class UiTheme
     public static readonly Color Warning = Color.FromArgb(232, 196, 106);
     public static readonly Color Danger = Color.FromArgb(240, 122, 122);
     public static readonly Color DangerSoft = Color.FromArgb(64, 30, 35);
+    public static readonly Color CategoryConfig = Color.FromArgb(176, 148, 255);
+    public static readonly Color CategoryFocus = Color.FromArgb(120, 168, 255);
+    public static readonly Color CategoryMouseover = Color.FromArgb(240, 140, 200);
+    public static readonly Color CategoryPet = Color.FromArgb(140, 220, 120);
+    public static readonly Color CategoryBoss = Color.FromArgb(255, 158, 96);
+    public static readonly Color CategoryItem = Color.FromArgb(232, 160, 90);
 
     internal enum ButtonKind
     {
@@ -915,6 +922,41 @@ internal static class UiTheme
         ListViewSubItemIcons.Add(listView, resolver);
     }
 
+    public static void SetListViewRowAccentResolver(
+        ListView listView,
+        Func<ListViewItem, Color?> resolver)
+    {
+        ListViewRowAccents.Add(listView, resolver);
+    }
+
+    public static Color GetStateCategoryAccent(string? category)
+    {
+        if (string.IsNullOrWhiteSpace(category))
+        {
+            return Accent;
+        }
+
+        var key = ClassStateCatalog.GetStorageCategoryFromDisplay(category.Trim());
+        return key switch
+        {
+            ClassStateCatalog.CategoryState => Accent,
+            ClassStateCatalog.CategorySpecial => Warning,
+            ClassStateCatalog.CategoryResource => Success,
+            ClassStateCatalog.CategoryConfig => CategoryConfig,
+            ClassStateCatalog.CategoryItem => CategoryItem,
+            ClassStateCatalog.CategoryTarget => Danger,
+            ClassStateCatalog.CategoryFocus => CategoryFocus,
+            ClassStateCatalog.CategoryMouseover => CategoryMouseover,
+            ClassStateCatalog.CategoryPet => CategoryPet,
+            ClassStateCatalog.CategoryBoss1
+                or ClassStateCatalog.CategoryBoss2
+                or ClassStateCatalog.CategoryBoss3
+                or ClassStateCatalog.CategoryBoss4
+                or ClassStateCatalog.CategoryBoss5 => CategoryBoss,
+            _ => Muted
+        };
+    }
+
     public static void StyleListView(ListView listView, Font font)
     {
         listView.Dock = DockStyle.Fill;
@@ -969,10 +1011,24 @@ internal static class UiTheme
                 e.Graphics.FillRectangle(brush, e.Bounds);
             }
 
-            if (selected && e.ColumnIndex == 0)
+            if (e.ColumnIndex == 0)
             {
-                using var accent = new SolidBrush(Accent);
-                e.Graphics.FillRectangle(accent, e.Bounds.Left, e.Bounds.Top + 4, 3, e.Bounds.Height - 8);
+                Color? strip = null;
+                if (ListViewRowAccents.TryGetValue(listView, out var accentResolver))
+                {
+                    strip = accentResolver(e.Item);
+                }
+
+                if (strip is null && selected)
+                {
+                    strip = Accent;
+                }
+
+                if (strip is { } accent)
+                {
+                    using var brush = new SolidBrush(accent);
+                    e.Graphics.FillRectangle(brush, e.Bounds.Left, e.Bounds.Top + 4, 3, e.Bounds.Height - 8);
+                }
             }
 
             var textLeft = e.Bounds.X + 8;

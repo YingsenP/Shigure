@@ -64,6 +64,7 @@ internal static class ClassStateCatalog
         [
             "酒池", "符文", "姿态", "神圣军备", "自律", "天启骑士数量",
             "英勇打击", "吸血鬼打击", "收割者战刃", "沸点",
+            "风暴涌流图腾", "风暴涌流图腾数量", "治疗之泉图腾", "治疗之泉图腾数量",
         ]),
         (CategoryConfig,
         [
@@ -151,6 +152,35 @@ internal static class ClassStateCatalog
 
         return null;
     }
+
+    public static string ClassifyField(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return CategoryState;
+        }
+
+        foreach (var category in TopCategories)
+        {
+            if (IsUnitPrefixCategory(category) && name.StartsWith(category, StringComparison.Ordinal))
+            {
+                return category;
+            }
+        }
+
+        return FindCategory(name) ?? CategoryState;
+    }
+
+    public static bool IsUnitPrefixCategory(string category)
+        => category is CategoryTarget
+            or CategoryFocus
+            or CategoryMouseover
+            or CategoryPet
+            or CategoryBoss1
+            or CategoryBoss2
+            or CategoryBoss3
+            or CategoryBoss4
+            or CategoryBoss5;
 
     public static bool IsInCategory(string name, string category)
     {

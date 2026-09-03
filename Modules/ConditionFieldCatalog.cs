@@ -490,17 +490,7 @@ public sealed class ConditionFieldCatalog
             : null;
 
     private static string InferStateClassification(string name)
-    {
-        foreach (var classification in ClassStateCatalog.TopCategories.Where(IsUnitStateClassification))
-        {
-            if (name.StartsWith(classification, StringComparison.Ordinal))
-            {
-                return classification;
-            }
-        }
-
-        return ClassStateCatalog.FindCategory(name) ?? ClassStateCatalog.CategoryState;
-    }
+        => ClassStateCatalog.ClassifyField(name);
 
     private static string InferAuraClassification(string name)
         => name.StartsWith("目标", StringComparison.Ordinal)
@@ -510,15 +500,7 @@ public sealed class ConditionFieldCatalog
                 : "玩家";
 
     private static bool IsUnitStateClassification(string classification)
-        => classification is ClassStateCatalog.CategoryTarget
-            or ClassStateCatalog.CategoryFocus
-            or ClassStateCatalog.CategoryMouseover
-            or ClassStateCatalog.CategoryPet
-            or ClassStateCatalog.CategoryBoss1
-            or ClassStateCatalog.CategoryBoss2
-            or ClassStateCatalog.CategoryBoss3
-            or ClassStateCatalog.CategoryBoss4
-            or ClassStateCatalog.CategoryBoss5;
+        => ClassStateCatalog.IsUnitPrefixCategory(classification);
 
     private static string NormalizeStateName(string name)
         => string.Equals(name, "法术失败", StringComparison.Ordinal)

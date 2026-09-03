@@ -29,6 +29,7 @@ internal static class UnitSummary
             UnitSelectorKind.UnitWithRole => $"职责={unit.Role} {dir}首个",
             UnitSelectorKind.UnitWithRoleWithoutAura => $"职责={unit.Role}且不带[{aura}] {dir}",
             UnitSelectorKind.UnitWithAura => $"带[{aura}] 持续最久",
+            UnitSelectorKind.UnitWithAuraShortest => $"带[{aura}] 持续最短",
             UnitSelectorKind.UnitWithDispelType => $"驱散类型={unit.DispelType}",
             UnitSelectorKind.HighestHealingAbsorb => $"治疗吸收最高 (>{threshold})",
             UnitSelectorKind.HighestHealingAbsorbWithAnyAura => $"带任一[{auras}]且治疗吸收最高 (>{threshold})",

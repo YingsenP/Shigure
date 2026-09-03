@@ -32,6 +32,9 @@ public enum UnitSelectorKind
     /// <summary>带某光环(取持续最久)。get_unit_with_aura</summary>
     UnitWithAura,
 
+    /// <summary>带某光环(取持续最短)。</summary>
+    UnitWithAuraShortest,
+
     /// <summary>带某驱散类型的首个单位。get_unit_with_dispel_type</summary>
     UnitWithDispelType,
 

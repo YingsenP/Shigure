@@ -291,8 +291,10 @@ public sealed class StatusForm : Form
     {
         InitializeComponent();
         UiTheme.SetListViewSubItemIconResolver(_stateList, ResolveStatusListIcon);
+        UiTheme.SetListViewRowAccentResolver(_stateList, ResolveStateListAccent);
         UiTheme.SetListViewSubItemIconResolver(_auraList, ResolveStatusListIcon);
         UiTheme.SetListViewSubItemIconResolver(_spellList, ResolveStatusListIcon);
+        UiTheme.SetListViewRowAccentResolver(_spellList, ResolveSpellListAccent);
         SpellIconCatalog.CatalogChanged += OnSpellIconCatalogChanged;
     }
 
@@ -343,7 +345,10 @@ public sealed class StatusForm : Form
 
     private static Image? ResolveStatusListIcon(ListViewItem item, int columnIndex)
     {
-        if (columnIndex != 1)
+        if (item.ListView is not { } list
+            || columnIndex < 0
+            || columnIndex >= list.Columns.Count
+            || list.Columns[columnIndex].Text != "名称")
         {
             return null;
         }
@@ -356,6 +361,19 @@ public sealed class StatusForm : Form
             _ => null
         };
     }
+
+    private static Color? ResolveStateListAccent(ListViewItem item)
+        => item.Tag is string category && category.Length > 0
+            ? UiTheme.GetStateCategoryAccent(category)
+            : null;
+
+    private static Color? ResolveSpellListAccent(ListViewItem item)
+        => item.Tag switch
+        {
+            StatusListIcon { IsItem: true } => UiTheme.GetStateCategoryAccent(ClassStateCatalog.CategoryItem),
+            StatusListIcon => UiTheme.GetStateCategoryAccent(ClassStateCatalog.CategoryState),
+            _ => null
+        };
 
     private void OnSpellIconCatalogChanged()
     {
@@ -410,9 +428,10 @@ public sealed class StatusForm : Form
         _moduleHost = CreatePageHost();
         _aboutHost = CreatePageHost();
 
-        _stateList = UiTheme.CreateListView(Font, "status-state-v2",
+        _stateList = UiTheme.CreateListView(Font, "status-state-v3",
             new UiTheme.ListColumn("#", 28, 28, FixedWidth: true),
-            new UiTheme.ListColumn("名称", 40, 220),
+            new UiTheme.ListColumn("分类", 56, 88),
+            new UiTheme.ListColumn("名称", 40, 200),
             new UiTheme.ListColumn("值", 40, 900, FillRemaining: true));
         _auraList = UiTheme.CreateListView(Font, "status-aura-v3",
             new UiTheme.ListColumn("#", 28, 28, FixedWidth: true),
@@ -487,7 +506,7 @@ public sealed class StatusForm : Form
 
     private void InitializeEmptyLists()
     {
-        ReplaceItems(_stateList, [new ListViewItem(["-", "状态", "等待游戏状态"])]);
+        ReplaceItems(_stateList, [new ListViewItem(["-", "-", "状态", "等待游戏状态"])]);
         ReplaceItems(_auraList, [new ListViewItem(["-", "光环", "-", "-", "无数据"])]);
         ReplaceItems(_spellList, [new ListViewItem(["-", "技能", "-", "-", "无数据"])]);
         ReplaceItems(_dynamicUnitList, [new ListViewItem(["-", "动态单位", "等待游戏状态"])]);
@@ -1395,7 +1414,8 @@ public sealed class StatusForm : Form
             "特殊",
             [
                 "酒池", "符文", "姿态", "神圣军备", "自律", "天启骑士数量",
-                "英勇打击", "吸血鬼打击", "收割者战刃", "沸点"
+                "英勇打击", "吸血鬼打击", "收割者战刃", "沸点",
+                "风暴涌流图腾", "风暴涌流图腾数量", "治疗之泉图腾", "治疗之泉图腾数量"
             ],
             150), 1, 0);
         fields.Controls.Add(CreateCommonFieldCard(
@@ -1761,7 +1781,7 @@ public sealed class StatusForm : Form
         var items = new List<ListViewItem>();
         if (snapshot.State is null)
         {
-            items.Add(new ListViewItem(new[] { "-", "状态", "等待游戏状态" }));
+            items.Add(new ListViewItem(new[] { "-", "-", "状态", "等待游戏状态" }));
         }
         else
         {
@@ -1769,7 +1789,7 @@ public sealed class StatusForm : Form
             if (!string.IsNullOrWhiteSpace(snapshot.ModuleName))
             {
                 index++;
-                items.Add(new ListViewItem(new[] { index.ToString(), "匹配模块", snapshot.ModuleName }));
+                items.Add(CreateStateRow(index, "匹配模块", snapshot.ModuleName));
             }
 
             foreach (var (key, value) in snapshot.State.Values)
@@ -1782,11 +1802,22 @@ public sealed class StatusForm : Form
                 }
 
                 index++;
-                items.Add(new ListViewItem(new[] { index.ToString(), key, UiTheme.FormatValue(value) }));
+                items.Add(CreateStateRow(index, key, UiTheme.FormatValue(value)));
             }
         }
 
         ReplaceItems(_stateList, items);
+    }
+
+    private static ListViewItem CreateStateRow(int index, string name, string value)
+    {
+        var category = string.Equals(name, "匹配模块", StringComparison.Ordinal)
+            ? "模块"
+            : ClassStateCatalog.GetCategoryDisplayName(ClassStateCatalog.ClassifyField(name));
+        return new ListViewItem(new[] { index.ToString(), category, name, value })
+        {
+            Tag = category
+        };
     }
 
     private void UpdateAuraList(RenderSnapshot? snapshot)
@@ -1939,11 +1970,7 @@ public sealed class StatusForm : Form
             display.Type,
             UiTheme.FormatValue(value)
         });
-        if (display.IconId > 0)
-        {
-            row.Tag = new StatusListIcon(display.IconId, display.IsItem);
-        }
-
+        row.Tag = new StatusListIcon(display.IconId, display.IsItem);
         return row;
     }
 

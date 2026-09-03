@@ -192,6 +192,7 @@ function Fuyutsui:UNIT_SPELLCAST_SUCCEEDED(_, unitTarget, castGUID, spellID, cas
     self:UpdateInsertSpellBySuccess(spellID)
     self:UpdateInsertItemBySuccess(spellID)
     self:PreviousSkill(spellID)
+    self:UpdateActiveTotemRemainingTime(spellID)
     if spellID == 384255 then
         self:ClearAllFuyutsuiBars()
         print("切换天赋")

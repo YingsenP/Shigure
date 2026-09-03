@@ -46,6 +46,7 @@ public sealed class ModuleEditorControl : UserControl
     private Button _saveButton = null!;
     private Button _deleteButton = null!;
     private Button _addButton = null!;
+    private Button _reloadButton = null!;
     private readonly ToolTip _rulesGridToolTip = new()
     {
         InitialDelay = 300,
@@ -173,6 +174,70 @@ public sealed class ModuleEditorControl : UserControl
         root.Controls.Add(BuildActionRow(), 1, 1);
     }
 
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (keyData == (Keys.Control | Keys.S))
+        {
+            if (_saveButton.Enabled)
+            {
+                _saveButton.PerformClick();
+            }
+
+            return true;
+        }
+
+        if (keyData == Keys.F5)
+        {
+            if (_reloadButton.Enabled)
+            {
+                _reloadButton.PerformClick();
+            }
+
+            return true;
+        }
+
+        if (keyData == (Keys.Control | Keys.N))
+        {
+            if (_addButton.Enabled)
+            {
+                _addButton.PerformClick();
+            }
+
+            return true;
+        }
+
+        if (_rulesGrid.ContainsFocus && TryHandleRulesGridShortcut(keyData))
+        {
+            return true;
+        }
+
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    private bool TryHandleRulesGridShortcut(Keys keyData)
+    {
+        var rowIndex = _rulesGrid.CurrentCell?.RowIndex ?? -1;
+        if (keyData == (Keys.Control | Keys.D))
+        {
+            CopyRule(rowIndex);
+            return true;
+        }
+
+        if (keyData == (Keys.Alt | Keys.Up))
+        {
+            MoveRule(rowIndex, -1);
+            return true;
+        }
+
+        if (keyData == (Keys.Alt | Keys.Down))
+        {
+            MoveRule(rowIndex, 1);
+            return true;
+        }
+
+        return false;
+    }
+
     private Control BuildSidebar()
     {
         var sidebar = new UiCardPanel
@@ -218,10 +283,11 @@ public sealed class ModuleEditorControl : UserControl
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         footer.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        var reloadButton = UiTheme.CreateButton("刷新", UiTheme.ButtonKind.Secondary);
-        StyleModuleFooterButton(reloadButton);
-        reloadButton.Dock = DockStyle.Fill;
-        reloadButton.Click += async (_, _) => await RunModuleCommandAsync(_modulesReloadRequested);
+        _reloadButton = UiTheme.CreateButton("刷新", UiTheme.ButtonKind.Secondary);
+        StyleModuleFooterButton(_reloadButton);
+        _reloadButton.Dock = DockStyle.Fill;
+        _reloadButton.Click += async (_, _) => await RunModuleCommandAsync(_modulesReloadRequested);
+        _pathToolTip.SetToolTip(_reloadButton, "重新加载模块列表 (F5)");
 
         var getModulesButton = UiTheme.CreateButton(
             "获取模块",
@@ -242,7 +308,7 @@ public sealed class ModuleEditorControl : UserControl
             getModulesButton.DeviceDpi / 96F);
         getModulesButton.Click += (_, _) => OpenModuleWebsite();
 
-        footer.Controls.Add(reloadButton, 0, 0);
+        footer.Controls.Add(_reloadButton, 0, 0);
         footer.Controls.Add(getModulesButton, 2, 0);
         return footer;
     }
@@ -839,9 +905,9 @@ public sealed class ModuleEditorControl : UserControl
                 Alignment = DataGridViewContentAlignment.MiddleCenter
             }
         });
-        AddRuleIconColumn("MoveUp", "▲", "上移");
-        AddRuleIconColumn("MoveDown", "▼", "下移");
-        AddRuleIconColumn("Copy", "⧉", "复制到下一行");
+        AddRuleIconColumn("MoveUp", "▲", "上移 (Alt+↑)");
+        AddRuleIconColumn("MoveDown", "▼", "下移 (Alt+↓)");
+        AddRuleIconColumn("Copy", "⧉", "复制到下一行 (Ctrl+D)");
         AddRuleIconColumn("InsertBlank", "+", "在下一行添加空白条件");
         AddRuleIconColumn("Delete", "×", "删除", UiTheme.Danger);
 
@@ -2837,9 +2903,9 @@ public sealed class ModuleEditorControl : UserControl
 
         return columnName switch
         {
-            "MoveUp" => "上移",
-            "MoveDown" => "下移",
-            "Copy" => "复制到下一行",
+            "MoveUp" => "上移 (Alt+↑)",
+            "MoveDown" => "下移 (Alt+↓)",
+            "Copy" => "复制到下一行 (Ctrl+D)",
             "InsertBlank" => "在下一行添加空白条件",
             "Delete" => "删除",
             _ => string.Empty
@@ -3702,6 +3768,7 @@ public sealed class ModuleEditorControl : UserControl
         _addButton.Dock = DockStyle.Fill;
         _addButton.Margin = new Padding(0, 0, 8, 0);
         _addButton.Click += async (_, _) => await RunModuleCommandAsync(AddModuleAsync);
+        _pathToolTip.SetToolTip(_addButton, "新建模块 (Ctrl+N)");
 
         _deleteButton = UiTheme.CreateButton("删除", UiTheme.ButtonKind.Danger);
         StyleModuleFooterButton(_deleteButton);
@@ -3714,6 +3781,7 @@ public sealed class ModuleEditorControl : UserControl
         _saveButton.Dock = DockStyle.Fill;
         _saveButton.Margin = new Padding(0);
         _saveButton.Click += async (_, _) => await RunModuleCommandAsync(SaveSelectedModuleAsync);
+        _pathToolTip.SetToolTip(_saveButton, "保存当前模块 (Ctrl+S)");
 
         buttons.Controls.Add(_addButton, 0, 0);
         buttons.Controls.Add(_deleteButton, 1, 0);

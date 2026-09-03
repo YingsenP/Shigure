@@ -72,7 +72,8 @@ public static class UnitSelector
             UnitSelectorKind.UnitWithRoleWithoutAura => unit.Role is null || aura is null
                 ? null
                 : UnitWithRole(group, unit.Role.Value, unit.Reverse, data => !HasAura(data, aura.Value)),
-            UnitSelectorKind.UnitWithAura => aura is null ? null : UnitWithAura(group, aura.Value),
+            UnitSelectorKind.UnitWithAura => aura is null ? null : UnitWithAura(group, aura.Value, shortest: false),
+            UnitSelectorKind.UnitWithAuraShortest => aura is null ? null : UnitWithAura(group, aura.Value, shortest: true),
             UnitSelectorKind.UnitWithDispelType => unit.DispelType is null
                 ? null
                 : UnitWithDispelType(group, unit.DispelType.Value),
@@ -205,13 +206,14 @@ public static class UnitSelector
         return reverse ? last : first;
     }
 
-    /// <summary>取拥有某光环(数值 &gt; 0)且持续时间最长的单位。</summary>
+    /// <summary>取拥有某光环(数值 &gt; 0)且持续时间最长或最短的单位。</summary>
     private static string? UnitWithAura(
         IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>> group,
-        long auraSpellId)
+        long auraSpellId,
+        bool shortest)
     {
         string? bestUnit = null;
-        var bestDuration = 0;
+        var bestDuration = shortest ? int.MaxValue : 0;
         for (var i = 1; i <= 30; i++)
         {
             var key = i.ToString();
@@ -225,7 +227,8 @@ public static class UnitSelector
                 continue;
             }
 
-            if (bestUnit is null || duration > bestDuration)
+            var better = shortest ? duration < bestDuration : duration > bestDuration;
+            if (bestUnit is null || better)
             {
                 bestUnit = key;
                 bestDuration = duration;
@@ -417,6 +420,7 @@ public static class UnitSelector
             or UnitSelectorKind.LowestHealthWithAuraCount
             or UnitSelectorKind.UnitWithRoleWithoutAura
             or UnitSelectorKind.UnitWithAura
+            or UnitSelectorKind.UnitWithAuraShortest
             or UnitSelectorKind.HighestHealingAbsorbWithAnyAura
             or UnitSelectorKind.HighestHealingAbsorbWithoutAnyAura
             or UnitSelectorKind.HighestHealingAbsorbWithoutAura
