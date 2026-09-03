@@ -2147,16 +2147,19 @@ public sealed class ModuleEditorControl : UserControl
         string Comment,
         IReadOnlyList<string> SubConditions,
         int? DelayMs,
-        int? LogicDelayMs);
+        int? LogicDelayMs,
+        bool? ContinueLogic);
 
     private sealed class RuleRowMetadata(
         IEnumerable<string>? subConditions = null,
         int? delayMs = null,
-        int? logicDelayMs = null)
+        int? logicDelayMs = null,
+        bool? continueLogic = null)
     {
         public List<string> SubConditions { get; } = subConditions?.ToList() ?? new List<string>();
         public int? DelayMs { get; set; } = delayMs;
         public int? LogicDelayMs { get; set; } = logicDelayMs;
+        public bool? ContinueLogic { get; set; } = continueLogic;
     }
 
     private void OnRulesGridCellClick(object? sender, DataGridViewCellEventArgs e)
@@ -2325,7 +2328,8 @@ public sealed class ModuleEditorControl : UserControl
                 e.Value?.ToString() ?? string.Empty,
                 metadata.SubConditions,
                 metadata.DelayMs,
-                metadata.LogicDelayMs);
+                metadata.LogicDelayMs,
+                metadata.ContinueLogic);
             e.FormattingApplied = true;
         }
     }
@@ -2526,7 +2530,8 @@ public sealed class ModuleEditorControl : UserControl
         string main,
         IReadOnlyList<string>? subs,
         int? delayMs,
-        int? logicDelayMs)
+        int? logicDelayMs,
+        bool? continueLogic)
     {
         var conditionText = FormatConditionExpressionForDisplay(main);
         if (subs is { Count: > 0 })
@@ -2549,6 +2554,13 @@ public sealed class ModuleEditorControl : UserControl
             conditionText = conditionText.Length == 0
                 ? $"逻辑延迟 {logicDelayMs.Value} ms"
                 : $"{conditionText}；逻辑延迟 {logicDelayMs.Value} ms";
+        }
+
+        if (continueLogic is true)
+        {
+            conditionText = conditionText.Length == 0
+                ? "继续逻辑"
+                : $"{conditionText}；继续逻辑";
         }
 
         return conditionText;
@@ -2873,7 +2885,8 @@ public sealed class ModuleEditorControl : UserControl
                 text,
                 metadata.SubConditions,
                 metadata.DelayMs,
-                metadata.LogicDelayMs);
+                metadata.LogicDelayMs,
+                metadata.ContinueLogic);
             if (text.Length == 0)
             {
                 return "点击编辑条件 (当前: 始终命中)";
@@ -3328,6 +3341,7 @@ public sealed class ModuleEditorControl : UserControl
             string.Empty,
             Array.Empty<string>(),
             null,
+            null,
             null));
     }
 
@@ -3543,7 +3557,8 @@ public sealed class ModuleEditorControl : UserControl
             // 子条件和延迟挂在 row.Tag, 随行一起被移动/拖拽/复制搬运。
             GetRuleMetadata(row).SubConditions,
             GetRuleMetadata(row).DelayMs,
-            GetRuleMetadata(row).LogicDelayMs);
+            GetRuleMetadata(row).LogicDelayMs,
+            GetRuleMetadata(row).ContinueLogic);
     }
 
     private void WriteRuleRow(DataGridViewRow row, RuleRowValues values)
@@ -3554,7 +3569,11 @@ public sealed class ModuleEditorControl : UserControl
         row.Cells["MacroCondition"].Value = string.Empty;
         row.Cells["Condition"].Value = values.Condition;
         row.Cells[RuleCommentColumnName].Value = values.Comment;
-        row.Tag = new RuleRowMetadata(values.SubConditions, values.DelayMs, values.LogicDelayMs);
+        row.Tag = new RuleRowMetadata(
+            values.SubConditions,
+            values.DelayMs,
+            values.LogicDelayMs,
+            values.ContinueLogic);
         RebuildUnitCell(row, values.UnitText);
         RebuildMacroConditionCell(row, values.MacroCondition);
     }
@@ -3575,6 +3594,7 @@ public sealed class ModuleEditorControl : UserControl
             allowSubConditions: true,
             delayMs: currentMetadata.DelayMs,
             logicDelayMs: currentMetadata.LogicDelayMs,
+            continueLogic: currentMetadata.ContinueLogic,
             allowRuleSettings: true,
             conditionFieldsProvider: () => RefreshAndBuildConditionFields(includeRuleSettings: true),
             spells: spells,
@@ -3593,20 +3613,22 @@ public sealed class ModuleEditorControl : UserControl
             if (!string.IsNullOrWhiteSpace(editor.ConditionText)
                 || subs.Count > 0
                 || editor.DelayMs is > 0
-                || editor.LogicDelayMs is > 0)
+                || editor.LogicDelayMs is > 0
+                || editor.ContinueLogic is true)
             {
                 var index = _rulesGrid.Rows.Add(true, null!, string.Empty, string.Empty, string.Empty, editor.ConditionText);
                 _rulesGrid.Rows[index].Tag = new RuleRowMetadata(
                     subs,
                     editor.DelayMs,
-                    editor.LogicDelayMs);
+                    editor.LogicDelayMs,
+                    editor.ContinueLogic);
             }
 
             return;
         }
 
         row.Cells["Condition"].Value = editor.ConditionText;
-        row.Tag = new RuleRowMetadata(subs, editor.DelayMs, editor.LogicDelayMs);
+        row.Tag = new RuleRowMetadata(subs, editor.DelayMs, editor.LogicDelayMs, editor.ContinueLogic);
         // 让「条件」列的装饰显示(主条件 且任一(…))立即刷新。
         _rulesGrid.InvalidateRow(rowIndex);
     }
@@ -3672,6 +3694,15 @@ public sealed class ModuleEditorControl : UserControl
                 ShigureConditionFields.LogicDelay,
                 "逻辑延迟 (ms)",
                 ConditionFieldType.Int,
+                ConditionFieldCategory.Shigure));
+        }
+
+        if (includeRuleSettings && seen.Add(ShigureConditionFields.ContinueLogic))
+        {
+            fields.Add(new ConditionField(
+                ShigureConditionFields.ContinueLogic,
+                "继续逻辑",
+                ConditionFieldType.Bool,
                 ConditionFieldCategory.Shigure));
         }
 
@@ -3948,7 +3979,8 @@ public sealed class ModuleEditorControl : UserControl
             _rulesGrid.Rows[index].Tag = new RuleRowMetadata(
                 rule.SubConditions,
                 rule.DelayMs,
-                rule.LogicDelayMs);
+                rule.LogicDelayMs,
+                rule.ContinueLogic);
             RebuildUnitCell(_rulesGrid.Rows[index], unitText);
             RebuildMacroConditionCell(_rulesGrid.Rows[index], rule.MacroCondition);
         }
@@ -4513,7 +4545,8 @@ public sealed class ModuleEditorControl : UserControl
                 && string.IsNullOrWhiteSpace(macroCondition)
                 && metadata.SubConditions.Count == 0
                 && metadata.DelayMs is not > 0
-                && metadata.LogicDelayMs is not > 0)
+                && metadata.LogicDelayMs is not > 0
+                && metadata.ContinueLogic is not true)
             {
                 continue;
             }
@@ -4537,7 +4570,8 @@ public sealed class ModuleEditorControl : UserControl
                 Step = string.Empty,
                 SubConditions = subs is { Count: > 0 } ? subs : null,
                 DelayMs = metadata.DelayMs,
-                LogicDelayMs = metadata.LogicDelayMs
+                LogicDelayMs = metadata.LogicDelayMs,
+                ContinueLogic = metadata.ContinueLogic
             });
         }
 

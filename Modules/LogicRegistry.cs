@@ -47,20 +47,20 @@ public sealed class LogicRegistry : IRuntimeLogic
                 _keymap.GetCurrentItemIndices());
             return new LogicEvaluation(
                 module.Name,
-                runLogic ? ModuleLogic.Run(module, state, _keymap) : null);
+                runLogic ? ModuleLogic.Run(module, state, _keymap) : []);
         }
 
         if (!runLogic)
         {
-            return new LogicEvaluation(null, null);
+            return new LogicEvaluation(null, []);
         }
 
         if (classId is not null && _logicByClass.TryGetValue(classId.Value, out var logic))
         {
-            return new LogicEvaluation(null, logic.Run(state, specName));
+            return new LogicEvaluation(null, [logic.Run(state, specName)]);
         }
 
-        return new LogicEvaluation(null, _defaultLogic.Run(state, specName));
+        return new LogicEvaluation(null, [_defaultLogic.Run(state, specName)]);
     }
 
     private ModuleDefinition? FindModule(int? classId, int? specId, GameState state)

@@ -188,6 +188,8 @@ public sealed class ModuleRule
     public int? DelayMs { get; set; }
     // 此规则实际发送按键后，暂停整个逻辑循环的时长（毫秒）；null/0 表示不暂停。
     public int? LogicDelayMs { get; set; }
+    // 命中并发送后是否继续判断后续规则；null/false 表示命中后结束扫描。
+    public bool? ContinueLogic { get; set; }
     public int? Unit { get; set; }
     public string? UnitName { get; set; }
     public string Spell { get; set; } = string.Empty;
@@ -210,6 +212,7 @@ public sealed class ModuleRule
             Comment = Comment,
             DelayMs = DelayMs,
             LogicDelayMs = LogicDelayMs,
+            ContinueLogic = ContinueLogic,
             Unit = Unit,
             UnitName = UnitName,
             Spell = Spell,
@@ -731,6 +734,7 @@ public sealed class ModuleStore
             }
             rule.DelayMs = rule.DelayMs is > 0 ? rule.DelayMs : null;
             rule.LogicDelayMs = rule.LogicDelayMs is > 0 ? rule.LogicDelayMs : null;
+            rule.ContinueLogic = rule.ContinueLogic is true ? true : null;
             if (rule.SubConditions is null)
             {
                 continue;
@@ -811,7 +815,7 @@ public sealed class ModuleStore
 
 public static class ModuleLogic
 {
-    public static LogicDecision Run(ModuleDefinition module, GameState state, IKeymapResolver keymap)
+    public static IReadOnlyList<LogicDecision> Run(ModuleDefinition module, GameState state, IKeymapResolver keymap)
     {
         var info = CreateInfo(module, state);
         var spellIndices = keymap.GetCurrentSpellIndices();
@@ -822,6 +826,7 @@ public static class ModuleLogic
         var insertItems = keymap.GetCurrentInsertItems();
         var spellNames = keymap.GetCurrentSpellNames();
         var itemNames = keymap.GetCurrentItemNames();
+        var decisions = new List<LogicDecision>();
 
         for (var ruleIndex = 0; ruleIndex < module.Rules.Count; ruleIndex++)
         {
@@ -845,7 +850,7 @@ public static class ModuleLogic
                 info["条件错误"] = error;
                 info["规则条件"] = rule.DescribeCondition();
                 AddRuleLogInfo(info, rule, ruleIndex, rateLimitKey, null);
-                return new LogicDecision(null, $"{module.Name}: 条件错误", info, module.Name);
+                return [new LogicDecision(null, $"{module.Name}: 条件错误", SnapshotInfo(info), module.Name)];
             }
 
             if (!conditionMatched)
@@ -860,7 +865,8 @@ public static class ModuleLogic
                 info["动作按键"] = "-";
                 info["动作单位"] = "-";
                 AddRuleLogInfo(info, rule, ruleIndex, rateLimitKey, null);
-                return new LogicDecision(null, $"{module.Name}: 暂停", info, module.Name);
+                decisions.Add(new LogicDecision(null, $"{module.Name}: 暂停", SnapshotInfo(info), module.Name));
+                return decisions;
             }
 
             var resolvedUnit = rule.Unit;
@@ -960,18 +966,27 @@ public static class ModuleLogic
                 ? resolvedUnit.GetValueOrDefault()
                 : $"{rule.UnitName} → {resolvedUnit.GetValueOrDefault()}";
             AddRuleLogInfo(info, rule, ruleIndex, rateLimitKey, hotkey);
-            return new LogicDecision(
+            decisions.Add(new LogicDecision(
                 hotkey,
                 step,
-                info,
+                SnapshotInfo(info),
                 module.Name,
                 rule.DelayMs.GetValueOrDefault(),
                 rateLimitKey,
-                rule.LogicDelayMs.GetValueOrDefault());
+                rule.LogicDelayMs.GetValueOrDefault()));
+            if (rule.ContinueLogic is not true)
+            {
+                return decisions;
+            }
+        }
+
+        if (decisions.Count > 0)
+        {
+            return decisions;
         }
 
         info["命中条件"] = "-";
-        return new LogicDecision(null, $"{module.Name}: 无匹配规则", info, module.Name);
+        return [new LogicDecision(null, $"{module.Name}: 无匹配规则", SnapshotInfo(info), module.Name)];
     }
 
     private static void AddRuleLogInfo(
@@ -984,9 +999,13 @@ public static class ModuleLogic
         info["动作按键"] = string.IsNullOrWhiteSpace(hotkey) ? "-" : hotkey;
         info["动作延迟"] = rule.DelayMs is > 0 ? $"{rule.DelayMs.Value} ms" : "-";
         info["逻辑延迟"] = rule.LogicDelayMs is > 0 ? $"{rule.LogicDelayMs.Value} ms" : "-";
+        info["继续逻辑"] = rule.ContinueLogic is true ? "是" : "-";
         info["规则编号"] = ruleIndex + 1;
         info["限流键"] = rateLimitKey;
     }
+
+    private static Dictionary<string, object?> SnapshotInfo(IReadOnlyDictionary<string, object?> info)
+        => new(info, StringComparer.Ordinal);
 
     // 把模块定义的动态单位/数量各解析一次, 写入当前帧 state.Values 供条件求值与目标解析使用。
     public static Dictionary<string, string?> ResolveDynamicFields(

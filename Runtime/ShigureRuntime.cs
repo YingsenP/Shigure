@@ -237,6 +237,7 @@ public sealed class ShigureRuntime
             return;
         }
 
+        var decisions = evaluation.Decisions;
         var decision = evaluation.Decision;
         if (decision is null)
         {
@@ -251,14 +252,9 @@ public sealed class ShigureRuntime
 
         if (_options.Mode == SendMode.Click)
         {
-            if (_clickPending
-                && !string.IsNullOrWhiteSpace(decision.Hotkey))
+            if (_clickPending)
             {
-                var sendAttemptAt = _timeProvider.GetUtcNow();
-                if (CanSend(decision, sendAttemptAt))
-                {
-                    SendAndPauseLogic(decision, scan.TargetWindowHandle);
-                }
+                TrySendDecisions(decisions, scan.TargetWindowHandle);
             }
 
             _enabled = false;
@@ -266,12 +262,22 @@ public sealed class ShigureRuntime
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(decision.Hotkey))
+        TrySendDecisions(decisions, scan.TargetWindowHandle);
+    }
+
+    private void TrySendDecisions(IReadOnlyList<LogicDecision> decisions, nint targetWindowHandle)
+    {
+        foreach (var decision in decisions)
         {
+            if (string.IsNullOrWhiteSpace(decision.Hotkey))
+            {
+                continue;
+            }
+
             var sendAttemptAt = _timeProvider.GetUtcNow();
             if (CanSend(decision, sendAttemptAt))
             {
-                SendAndPauseLogic(decision, scan.TargetWindowHandle);
+                SendAndPauseLogic(decision, targetWindowHandle);
             }
         }
     }
