@@ -297,7 +297,7 @@ public sealed class MainForm : Form, IMessageFilter
         try
         {
             // 合并阶段保持在 UI 线程，避免配置/宏编辑器在检查脏状态后又并发写同一 Lua。
-            result = _moduleDependencyService.Import(_moduleStore.GetModules());
+            result = _moduleDependencyService.Import(_moduleStore.GetModulesForImport());
         }
         catch (Exception ex)
         {

@@ -302,6 +302,20 @@ public sealed class ModuleStore
         }
     }
 
+    /// <summary>
+    /// 依赖导入用：包含版本过期模块，仍排除上次导入被拒绝的模块。
+    /// </summary>
+    public IReadOnlyList<ModuleDefinition> GetModulesForImport()
+    {
+        lock (_gate)
+        {
+            return _modules
+                .Where(module => !_rejectedModuleIds.Contains(module.Id))
+                .Select(module => module.Clone())
+                .ToList();
+        }
+    }
+
     public IReadOnlyList<ModuleDefinition> GetModulesForDisplay()
     {
         lock (_gate)
