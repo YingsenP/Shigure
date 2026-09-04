@@ -1260,7 +1260,40 @@ public sealed class MainForm : Form, IMessageFilter
         UpdateCloseBehaviorButtons();
         UpdateSpellIconPackageCard();
         RefreshDefaultModuleSelector();
+
+        void SyncContentLayout()
+        {
+            if (stack.Width != settingsContentWidth)
+            {
+                stack.Width = settingsContentWidth;
+            }
+
+            var viewWidth = scrollHost.ClientSize.Width;
+            var left = viewWidth > settingsContentWidth
+                ? (viewWidth - settingsContentWidth) / 2
+                : 0;
+            if (stack.Left != left)
+            {
+                stack.Left = left;
+            }
+
+            if (stack.Top != 0)
+            {
+                stack.Top = 0;
+            }
+
+            var minSize = new Size(settingsContentWidth, 0);
+            if (scrollHost.AutoScrollMinSize != minSize)
+            {
+                scrollHost.AutoScrollMinSize = minSize;
+            }
+        }
+
         scrollHost.Controls.Add(stack);
+        scrollHost.Resize += (_, _) => SyncContentLayout();
+        scrollHost.HandleCreated += (_, _) => BeginInvoke(SyncContentLayout);
+        stack.SizeChanged += (_, _) => SyncContentLayout();
+        SyncContentLayout();
         return scrollHost;
     }
 
