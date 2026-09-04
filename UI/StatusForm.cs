@@ -43,7 +43,8 @@ internal sealed record StatusListIcon(long Id, bool IsItem);
 public sealed class StatusForm : Form
 {
     private const string AboutLogoResourcePath = "Assets.arasaka-icon-transparent.png";
-    private const int AboutCardWidth = 1200;
+    private const int AboutCardWidth = 1600;
+    private const int SectionCardWidth = 1600;
     private const int AboutLogoSize = 220;
     private const float AboutLogoOpacity = 0.55F;
     private const int BossNumberCardWidth = 400;
@@ -106,7 +107,29 @@ public sealed class StatusForm : Form
 
         Copyright (c) 2019-2024 The Bootstrap Authors
 
-        界面导航与模块编辑中的部分图标来自该项目，采用 MIT License。
+        本软件的部分界面图标来自该项目，采用 MIT License。
+        """;
+
+    private const string AboutCleanIconsAttributionText =
+        """
+        Clean Icons - Mechagnome Edition
+
+        https://github.com/AcidWeb/Clean-Icons-Mechagnome-Edition
+
+        Upscaled icon pack for World of Warcraft.
+
+        本软件的技能与物品图标来自该项目。
+        """;
+
+    private const string AboutWowListfileAttributionText =
+        """
+        wow-listfile
+
+        https://github.com/wowdev/wow-listfile
+
+        A listfile for WoW archived files.
+
+        本软件的部分文件名与资源索引数据来自该项目。
         """;
 
     private static readonly IReadOnlyList<string> CurrentSeasonDungeonNames =
@@ -497,14 +520,14 @@ public sealed class StatusForm : Form
         AddNavItem(nav, SettingsPage.Modules, SettingsNavIcon.Modules, "模块", CreatePageShell("模块", "创建、匹配并维护运行模块", _moduleHost));
         AddNavGroup(nav, "监控");
         AddNavItem(nav, SettingsPage.Status, SettingsNavIcon.Status, "状态", CreatePageShell("状态", string.Empty, BuildStatusPage()));
-        AddNavItem(nav, SettingsPage.Party, SettingsNavIcon.Party, "队伍", CreatePageShell("队伍", "当前队伍单位与扫描字段摘要", BuildSection("队伍成员", _partyList, "实时队伍数据")));
-        AddNavItem(nav, SettingsPage.Logic, SettingsNavIcon.Logic, "逻辑", CreatePageShell("逻辑", "运行时推荐目标与调试值", BuildSection("逻辑信息", _unitInfoList, "当前模块的决策输出")));
+        AddNavItem(nav, SettingsPage.Party, SettingsNavIcon.Party, "队伍", CreatePageShell("队伍", "当前队伍单位与扫描字段摘要", BuildFixedWidthSectionPage("队伍成员", _partyList, "实时队伍数据")));
+        AddNavItem(nav, SettingsPage.Logic, SettingsNavIcon.Logic, "逻辑", CreatePageShell("逻辑", "运行时推荐目标与调试值", BuildFixedWidthSectionPage("逻辑信息", _unitInfoList, "当前模块的决策输出")));
         AddNavItem(nav, SettingsPage.Logs, SettingsNavIcon.Logs, "日志", CreatePageShell("日志", "运行、模块匹配与施放记录", BuildLogPage()));
         AddNavGroup(nav, "说明");
         AddNavItem(nav, SettingsPage.BossNumbers, SettingsNavIcon.BossNumbers, "首领", CreatePageShell("首领编号", "副本首领的序号、名称与扫描编号", BuildBossNumbersPage()));
         AddNavItem(nav, SettingsPage.CommonFields, SettingsNavIcon.CommonFields, "字段", CreatePageShell("常用字段", "模块条件可用的状态字段参考", BuildCommonFieldsPanel()));
         AddNavGroup(nav, "系统");
-        AddNavItem(nav, SettingsPage.About, SettingsNavIcon.About, "关于", CreatePageShell("关于", "应用信息、免责声明、许可证与图标来源", _aboutHost));
+        AddNavItem(nav, SettingsPage.About, SettingsNavIcon.About, "关于", CreatePageShell("关于", "应用信息、免责声明、许可证与来源", _aboutHost));
         _aboutHost.Controls.Add(BuildAboutPanel());
 
         root.Controls.Add(navShell, 0, 0);
@@ -668,16 +691,31 @@ public sealed class StatusForm : Form
         return shell;
     }
 
+    private const int StatusCardWidth = 600;
+
     private Control BuildStatusPage()
     {
-        var statusSplit = new TableLayoutPanel
+        var contentWidth = StatusCardWidth * 4 + UiTheme.PageGap * 3;
+        var scrollHost = new Panel
         {
             Dock = DockStyle.Fill,
+            AutoScroll = true,
+            BackColor = UiTheme.Surface,
+            Margin = new Padding(0)
+        };
+
+        var statusSplit = new TableLayoutPanel
+        {
+            Dock = DockStyle.None,
+            Location = Point.Empty,
             BackColor = UiTheme.Surface,
             ColumnCount = 4,
             RowCount = 1,
-            Margin = new Padding(0)
+            Margin = new Padding(0),
+            Padding = new Padding(0),
+            Width = contentWidth
         };
+        statusSplit.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         var sections = new[]
         {
@@ -686,54 +724,50 @@ public sealed class StatusForm : Form
             BuildSection("技能", _spellList, "冷却、充能与次数"),
             BuildSection("动态单位", _dynamicUnitList, "模块运行时计算值")
         };
-        bool? usingCompactLayout = null;
 
-        void ApplyLayout()
+        for (var i = 0; i < sections.Length; i++)
         {
-            // 四张卡片需要为五列表头保留可读宽度；不足时切成 2×2，避免原生横向滚动条。
-            // ClientSize 已是当前 WinForms 布局坐标，不再二次按 DPI 放大断点。
-            var compact = statusSplit.ClientSize.Width < 1100;
-            if (usingCompactLayout == compact)
-            {
-                return;
-            }
-
-            usingCompactLayout = compact;
-            statusSplit.SuspendLayout();
-            statusSplit.Controls.Clear();
-            statusSplit.ColumnStyles.Clear();
-            statusSplit.RowStyles.Clear();
-            statusSplit.ColumnCount = compact ? 2 : 4;
-            statusSplit.RowCount = compact ? 2 : 1;
-            for (var column = 0; column < statusSplit.ColumnCount; column++)
-            {
-                statusSplit.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F / statusSplit.ColumnCount));
-            }
-
-            for (var row = 0; row < statusSplit.RowCount; row++)
-            {
-                statusSplit.RowStyles.Add(new RowStyle(SizeType.Percent, 100F / statusSplit.RowCount));
-            }
-
-            for (var i = 0; i < sections.Length; i++)
-            {
-                var column = compact ? i % 2 : i;
-                var row = compact ? i / 2 : 0;
-                sections[i].Margin = new Padding(
-                    column == 0 ? 0 : UiTheme.PageGap / 2,
-                    row == 0 ? 0 : UiTheme.PageGap / 2,
-                    column == statusSplit.ColumnCount - 1 ? 0 : UiTheme.PageGap / 2,
-                    row == statusSplit.RowCount - 1 ? 0 : UiTheme.PageGap / 2);
-                statusSplit.Controls.Add(sections[i], column, row);
-            }
-
-            statusSplit.ResumeLayout(true);
+            var hasGap = i < sections.Length - 1;
+            statusSplit.ColumnStyles.Add(new ColumnStyle(
+                SizeType.Absolute,
+                StatusCardWidth + (hasGap ? UiTheme.PageGap : 0)));
+            sections[i].Dock = DockStyle.Fill;
+            sections[i].MinimumSize = new Size(StatusCardWidth, 0);
+            sections[i].MaximumSize = new Size(StatusCardWidth, 0);
+            sections[i].Margin = new Padding(0, 0, hasGap ? UiTheme.PageGap : 0, 0);
+            statusSplit.Controls.Add(sections[i], i, 0);
         }
 
-        statusSplit.SizeChanged += (_, _) => ApplyLayout();
-        statusSplit.HandleCreated += (_, _) => BeginInvoke(ApplyLayout);
-        ApplyLayout();
-        return statusSplit;
+        void SyncScrollLayout()
+        {
+            // 内容比视口宽时预留底栏横向滚动条高度，避免再挤出纵向滚动条。
+            var viewHeight = scrollHost.ClientSize.Height;
+            var needsHorizontalScroll = contentWidth > scrollHost.ClientSize.Width;
+            if (needsHorizontalScroll && !scrollHost.HorizontalScroll.Visible)
+            {
+                viewHeight = Math.Max(1, viewHeight - SystemInformation.HorizontalScrollBarHeight);
+            }
+
+            var height = Math.Max(200, viewHeight);
+            var nextSize = new Size(contentWidth, height);
+            if (statusSplit.Size != nextSize)
+            {
+                statusSplit.Size = nextSize;
+            }
+
+            // 只声明最小内容宽度，强制出现底部横向滚动条。
+            var minSize = new Size(contentWidth, 0);
+            if (scrollHost.AutoScrollMinSize != minSize)
+            {
+                scrollHost.AutoScrollMinSize = minSize;
+            }
+        }
+
+        scrollHost.Controls.Add(statusSplit);
+        scrollHost.Resize += (_, _) => SyncScrollLayout();
+        scrollHost.HandleCreated += (_, _) => BeginInvoke(SyncScrollLayout);
+        SyncScrollLayout();
+        return scrollHost;
     }
 
     private TableLayoutPanel BuildSection(string title, Control content, string subtitle)
@@ -802,15 +836,74 @@ public sealed class StatusForm : Form
         return section;
     }
 
-    private Control BuildLogPage()
+    private Control BuildFixedWidthSectionPage(string title, Control content, string subtitle)
     {
-        var card = new UiCardPanel
+        var scrollHost = new Panel
         {
             Dock = DockStyle.Fill,
+            AutoScroll = true,
+            BackColor = UiTheme.Surface,
+            Margin = new Padding(0)
+        };
+
+        var section = BuildSection(title, content, subtitle);
+        section.Dock = DockStyle.None;
+        section.Location = Point.Empty;
+        section.Width = SectionCardWidth;
+        section.MinimumSize = new Size(SectionCardWidth, 0);
+        section.MaximumSize = new Size(SectionCardWidth, 0);
+
+        void SyncScrollLayout()
+        {
+            var viewHeight = scrollHost.ClientSize.Height;
+            if (SectionCardWidth > scrollHost.ClientSize.Width && !scrollHost.HorizontalScroll.Visible)
+            {
+                viewHeight = Math.Max(1, viewHeight - SystemInformation.HorizontalScrollBarHeight);
+            }
+
+            var height = Math.Max(200, viewHeight);
+            var nextSize = new Size(SectionCardWidth, height);
+            if (section.Size != nextSize)
+            {
+                section.Size = nextSize;
+            }
+
+            var minSize = new Size(SectionCardWidth, 0);
+            if (scrollHost.AutoScrollMinSize != minSize)
+            {
+                scrollHost.AutoScrollMinSize = minSize;
+            }
+        }
+
+        scrollHost.Controls.Add(section);
+        scrollHost.Resize += (_, _) => SyncScrollLayout();
+        scrollHost.HandleCreated += (_, _) => BeginInvoke(SyncScrollLayout);
+        SyncScrollLayout();
+        return scrollHost;
+    }
+
+    private Control BuildLogPage()
+    {
+        const int logCardWidth = 1600;
+        var scrollHost = new Panel
+        {
+            Dock = DockStyle.Fill,
+            AutoScroll = true,
+            BackColor = UiTheme.Surface,
+            Margin = new Padding(0)
+        };
+
+        var card = new UiCardPanel
+        {
+            Dock = DockStyle.None,
+            Location = Point.Empty,
             ColumnCount = 1,
             RowCount = 2,
             Padding = new Padding(UiTheme.CardPadding),
-            Margin = new Padding(0)
+            Margin = new Padding(0),
+            Width = logCardWidth,
+            MinimumSize = new Size(logCardWidth, 0),
+            MaximumSize = new Size(logCardWidth, 0)
         };
         card.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
         card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -849,8 +942,37 @@ public sealed class StatusForm : Form
         toolbar.Controls.Add(clearButton);
         toolbar.Controls.Add(autoScroll);
         card.Controls.Add(toolbar, 0, 0);
+        _logTextBox.Dock = DockStyle.Fill;
+        _logTextBox.Margin = new Padding(0);
         card.Controls.Add(_logTextBox, 0, 1);
-        return card;
+
+        void SyncScrollLayout()
+        {
+            var viewHeight = scrollHost.ClientSize.Height;
+            if (logCardWidth > scrollHost.ClientSize.Width && !scrollHost.HorizontalScroll.Visible)
+            {
+                viewHeight = Math.Max(1, viewHeight - SystemInformation.HorizontalScrollBarHeight);
+            }
+
+            var height = Math.Max(200, viewHeight);
+            var nextSize = new Size(logCardWidth, height);
+            if (card.Size != nextSize)
+            {
+                card.Size = nextSize;
+            }
+
+            var minSize = new Size(logCardWidth, 0);
+            if (scrollHost.AutoScrollMinSize != minSize)
+            {
+                scrollHost.AutoScrollMinSize = minSize;
+            }
+        }
+
+        scrollHost.Controls.Add(card);
+        scrollHost.Resize += (_, _) => SyncScrollLayout();
+        scrollHost.HandleCreated += (_, _) => BeginInvoke(SyncScrollLayout);
+        SyncScrollLayout();
+        return scrollHost;
     }
 
     public void AttachSettingsPanel(Control panel)
@@ -1210,13 +1332,15 @@ public sealed class StatusForm : Form
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             BackColor = Color.Transparent,
             ColumnCount = 1,
-            RowCount = 4,
+            RowCount = 6,
             Location = Point.Empty,
             Padding = new Padding(0),
             Margin = new Padding(0)
         };
         ApplyAboutCardWidth(panel);
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, AboutCardWidth));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -1307,7 +1431,9 @@ public sealed class StatusForm : Form
         panel.Controls.Add(infoCard, 0, 0);
         panel.Controls.Add(CreateAboutArticleCard("免责声明", AboutDisclaimerText), 0, 1);
         panel.Controls.Add(CreateAboutArticleCard("许可证", AboutMitLicenseText), 0, 2);
-        panel.Controls.Add(CreateAboutArticleCard("图标来源", AboutBootstrapIconsAttributionText), 0, 3);
+        panel.Controls.Add(CreateAboutArticleCard("界面图标来源", AboutBootstrapIconsAttributionText), 0, 3);
+        panel.Controls.Add(CreateAboutArticleCard("技能与物品图标来源", AboutCleanIconsAttributionText), 0, 4);
+        panel.Controls.Add(CreateAboutArticleCard("数据来源", AboutWowListfileAttributionText), 0, 5);
         scrollHost.Controls.Add(panel);
         return scrollHost;
     }
@@ -1386,32 +1512,39 @@ public sealed class StatusForm : Form
         return card;
     }
 
+    private const int CommonFieldCardWidth = 800;
+
     private Control BuildCommonFieldsPanel()
     {
+        var contentWidth = CommonFieldCardWidth * 2 + UiTheme.PageGap;
         var scrollHost = new Panel
         {
             Dock = DockStyle.Fill,
             BackColor = UiTheme.Surface,
             AutoScroll = true,
-            Margin = new Padding(0)
+            Margin = new Padding(0),
+            AutoScrollMinSize = new Size(contentWidth, 0)
         };
 
         var fields = new TableLayoutPanel
         {
             AutoSize = true,
-            Dock = DockStyle.Top,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.None,
+            Location = Point.Empty,
             BackColor = UiTheme.Surface,
             ColumnCount = 2,
             RowCount = 5,
-            Margin = new Padding(0)
+            Width = contentWidth,
+            Margin = new Padding(0),
+            Padding = new Padding(0)
         };
-        fields.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        fields.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        fields.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        fields.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        fields.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        fields.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        fields.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        fields.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, CommonFieldCardWidth + UiTheme.PageGap));
+        fields.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, CommonFieldCardWidth));
+        for (var i = 0; i < 5; i++)
+        {
+            fields.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        }
 
         fields.Controls.Add(CreateCommonFieldCard(
             "状态",
@@ -1464,7 +1597,24 @@ public sealed class StatusForm : Form
             ["存在", "生命值"],
             104), 0, 4);
 
+        void SyncScrollLayout()
+        {
+            if (fields.Width != contentWidth)
+            {
+                fields.Width = contentWidth;
+            }
+
+            var minSize = new Size(contentWidth, 0);
+            if (scrollHost.AutoScrollMinSize != minSize)
+            {
+                scrollHost.AutoScrollMinSize = minSize;
+            }
+        }
+
         scrollHost.Controls.Add(fields);
+        scrollHost.Resize += (_, _) => SyncScrollLayout();
+        scrollHost.HandleCreated += (_, _) => BeginInvoke(SyncScrollLayout);
+        SyncScrollLayout();
         return scrollHost;
     }
 
@@ -1479,8 +1629,9 @@ public sealed class StatusForm : Form
             ColumnCount = 1,
             RowCount = 2,
             Padding = new Padding(UiTheme.CardPadding),
-            Margin = new Padding(0, 0, UiTheme.PageGap, UiTheme.PageGap),
-            MinimumSize = new Size(0, minimumHeight)
+            Margin = new Padding(0, 0, 0, UiTheme.PageGap),
+            MinimumSize = new Size(CommonFieldCardWidth, minimumHeight),
+            MaximumSize = new Size(CommonFieldCardWidth, 0)
         };
         card.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
