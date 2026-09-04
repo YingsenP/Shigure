@@ -32,7 +32,10 @@ internal interface IRuntimeLogic
         bool runLogic);
 }
 
-public sealed record LogicEvaluation(string? ModuleName, LogicDecision? Decision);
+public sealed record LogicEvaluation(string? ModuleName, IReadOnlyList<LogicDecision> Decisions)
+{
+    public LogicDecision? Decision => Decisions.Count == 0 ? null : Decisions[^1];
+}
 
 internal interface IRuntimeKeyOutput
 {

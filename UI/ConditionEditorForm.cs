@@ -183,6 +183,7 @@ public sealed class ConditionEditorForm : Form
     public string ConditionText { get; private set; } = string.Empty;
     public int? DelayMs { get; private set; }
     public int? LogicDelayMs { get; private set; }
+    public bool? ContinueLogic { get; private set; }
 
     // 子条件: 与主条件是「且」、子条件彼此是「或」。allowSubConditions=false(默认)时不显示该区,
     // 也用于子条件自身的嵌套编辑弹窗防止无限递归。
@@ -195,6 +196,7 @@ public sealed class ConditionEditorForm : Form
         bool allowSubConditions = false,
         int? delayMs = null,
         int? logicDelayMs = null,
+        bool? continueLogic = null,
         bool allowRuleSettings = false,
         Func<IReadOnlyList<ConditionField>>? conditionFieldsProvider = null,
         IReadOnlyList<ConditionSpell>? spells = null,
@@ -243,6 +245,15 @@ public sealed class ConditionEditorForm : Form
                 ShigureConditionFields.LogicDelay,
                 "==",
                 logicDelayMs.Value.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        if (_allowRuleSettings && continueLogic is true)
+        {
+            AddRow(new ConditionTerm(
+                OrWithPrevious: false,
+                ShigureConditionFields.ContinueLogic,
+                "==",
+                "true"));
         }
 
         // 空条件直接落在一条可填行上, 无需先去找"添加条件"。
@@ -1090,6 +1101,11 @@ public sealed class ConditionEditorForm : Form
             return;
         }
 
+        if (!TryReadContinueLogic(out var continueLogic))
+        {
+            return;
+        }
+
         // 仅当原本有条件、现在主条件与子条件都为空时才提醒(避免把已有规则误清成"始终命中")。
         if (text.Length == 0
             && _subConditions.Count == 0
@@ -1106,6 +1122,7 @@ public sealed class ConditionEditorForm : Form
         ConditionText = text;
         DelayMs = delayMs;
         LogicDelayMs = logicDelayMs;
+        ContinueLogic = continueLogic;
         DialogResult = DialogResult.OK;
     }
 
@@ -1732,14 +1749,15 @@ public sealed class ConditionEditorForm : Form
     {
         _ = TryReadDelay(out var delayMs, showWarning: false);
         _ = TryReadLogicDelay(out var logicDelayMs, showWarning: false);
-        var full = ComposePreview(ConditionExpression.Build(CollectTerms()), delayMs, logicDelayMs);
+        _ = TryReadContinueLogic(out var continueLogic, showWarning: false);
+        var full = ComposePreview(ConditionExpression.Build(CollectTerms()), delayMs, logicDelayMs, continueLogic);
         _previewLabel.Text = full.Length == 0 ? "预览: (无条件, 始终命中)" : $"预览: {full}";
         // 单行预览会被省略号截断, 悬停看完整表达式。
         _previewToolTip.SetToolTip(_previewLabel, full.Length == 0 ? string.Empty : full);
     }
 
     // 把主条件文本与子条件合成为可读的整体表达式(与 ModuleRule.DescribeCondition 同形)。
-    private string ComposePreview(string mainText, int? delayMs, int? logicDelayMs)
+    private string ComposePreview(string mainText, int? delayMs, int? logicDelayMs, bool? continueLogic)
     {
         var conditionText = mainText;
         if (_subConditions.Count > 0)
@@ -1762,6 +1780,13 @@ public sealed class ConditionEditorForm : Form
                 : $"{conditionText}；逻辑延迟 {logicDelayMs.Value} ms";
         }
 
+        if (continueLogic is true)
+        {
+            conditionText = conditionText.Length == 0
+                ? "继续逻辑"
+                : $"{conditionText}；继续逻辑";
+        }
+
         return conditionText;
     }
 
@@ -1781,6 +1806,36 @@ public sealed class ConditionEditorForm : Form
             "逻辑延迟",
             out delayMs,
             showWarning);
+    }
+
+    private bool TryReadContinueLogic(out bool? continueLogic, bool showWarning = true)
+    {
+        continueLogic = null;
+        var rows = _conditionsGrid.Rows
+            .Cast<DataGridViewRow>()
+            .Where(row => IsRuleSettingField(SelectedField(row), ShigureConditionFields.ContinueLogic))
+            .ToList();
+        if (rows.Count > 1)
+        {
+            if (showWarning)
+            {
+                MessageBox.Show(
+                    "每条规则只能设置一个“继续逻辑”。请删除多余的 Shigure 继续逻辑行。",
+                    "Shigure",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+
+            return false;
+        }
+
+        if (rows.Count == 0)
+        {
+            return true;
+        }
+
+        continueLogic = IsFalseText(ReadRowValue(rows[0])) ? null : true;
+        return true;
     }
 
     private bool TryReadRuleSettingDelay(
@@ -1842,9 +1897,14 @@ public sealed class ConditionEditorForm : Form
         return IsRuleSettingField(field, ShigureConditionFields.LogicDelay);
     }
 
+    private static bool IsContinueLogicField(FieldItem? field)
+    {
+        return IsRuleSettingField(field, ShigureConditionFields.ContinueLogic);
+    }
+
     private static bool IsRuleSettingField(FieldItem? field)
     {
-        return IsDelayField(field) || IsLogicDelayField(field);
+        return IsDelayField(field) || IsLogicDelayField(field) || IsContinueLogicField(field);
     }
 
     private static bool IsRuleSettingField(FieldItem? field, string fieldName)

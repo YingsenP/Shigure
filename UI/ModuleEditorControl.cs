@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.Text.RegularExpressions;
 
@@ -883,28 +882,19 @@ public sealed class ModuleEditorControl : UserControl
             ReadOnly = true,
             SortMode = DataGridViewColumnSortMode.NotSortable
         });
-        _rulesGrid.Columns.Add(new DataGridViewTextBoxColumn
+        _rulesGrid.Columns.Add(new DataGridViewButtonColumn
         {
             Name = RuleCommentColumnName,
-            HeaderText = "注释",
-            Width = 64,
-            MinimumWidth = 40,
+            HeaderText = string.Empty,
+            Text = string.Empty,
+            UseColumnTextForButtonValue = true,
+            Width = 32,
+            MinimumWidth = 32,
             AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
-            ReadOnly = true,
-            SortMode = DataGridViewColumnSortMode.NotSortable,
-            HeaderCell = new DataGridViewColumnHeaderCell
-            {
-                Value = "注释",
-                Style = new DataGridViewCellStyle
-                {
-                    Alignment = DataGridViewContentAlignment.MiddleCenter
-                }
-            },
-            DefaultCellStyle = new DataGridViewCellStyle
-            {
-                Alignment = DataGridViewContentAlignment.MiddleCenter
-            }
+            Resizable = DataGridViewTriState.False,
+            FlatStyle = FlatStyle.Flat
         });
+        _rulesGrid.Columns[RuleCommentColumnName]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
         AddRuleIconColumn("MoveUp", "▲", "上移 (Alt+↑)");
         AddRuleIconColumn("MoveDown", "▼", "下移 (Alt+↓)");
         AddRuleIconColumn("Copy", "⧉", "复制到下一行 (Ctrl+D)");
@@ -1015,7 +1005,8 @@ public sealed class ModuleEditorControl : UserControl
             {
                 Alignment = DataGridViewContentAlignment.MiddleCenter,
                 NullValue = null,
-                BackColor = UiTheme.Surface
+                BackColor = UiTheme.Surface,
+                Padding = new Padding(13, 6, 13, 6)
             }
         };
 
@@ -2147,16 +2138,19 @@ public sealed class ModuleEditorControl : UserControl
         string Comment,
         IReadOnlyList<string> SubConditions,
         int? DelayMs,
-        int? LogicDelayMs);
+        int? LogicDelayMs,
+        bool? ContinueLogic);
 
     private sealed class RuleRowMetadata(
         IEnumerable<string>? subConditions = null,
         int? delayMs = null,
-        int? logicDelayMs = null)
+        int? logicDelayMs = null,
+        bool? continueLogic = null)
     {
         public List<string> SubConditions { get; } = subConditions?.ToList() ?? new List<string>();
         public int? DelayMs { get; set; } = delayMs;
         public int? LogicDelayMs { get; set; } = logicDelayMs;
+        public bool? ContinueLogic { get; set; } = continueLogic;
     }
 
     private void OnRulesGridCellClick(object? sender, DataGridViewCellEventArgs e)
@@ -2325,7 +2319,8 @@ public sealed class ModuleEditorControl : UserControl
                 e.Value?.ToString() ?? string.Empty,
                 metadata.SubConditions,
                 metadata.DelayMs,
-                metadata.LogicDelayMs);
+                metadata.LogicDelayMs,
+                metadata.ContinueLogic);
             e.FormattingApplied = true;
         }
     }
@@ -2526,7 +2521,8 @@ public sealed class ModuleEditorControl : UserControl
         string main,
         IReadOnlyList<string>? subs,
         int? delayMs,
-        int? logicDelayMs)
+        int? logicDelayMs,
+        bool? continueLogic)
     {
         var conditionText = FormatConditionExpressionForDisplay(main);
         if (subs is { Count: > 0 })
@@ -2549,6 +2545,13 @@ public sealed class ModuleEditorControl : UserControl
             conditionText = conditionText.Length == 0
                 ? $"逻辑延迟 {logicDelayMs.Value} ms"
                 : $"{conditionText}；逻辑延迟 {logicDelayMs.Value} ms";
+        }
+
+        if (continueLogic is true)
+        {
+            conditionText = conditionText.Length == 0
+                ? "继续逻辑"
+                : $"{conditionText}；继续逻辑";
         }
 
         return conditionText;
@@ -2734,14 +2737,6 @@ public sealed class ModuleEditorControl : UserControl
             return;
         }
 
-        var icon = columnName switch
-        {
-            "MoveUp" => "▲",
-            "MoveDown" => "▼",
-            "Copy" => "⧉",
-            "InsertBlank" => "+",
-            _ => "×"
-        };
         var enabled = IsRuleIconEnabled(columnName, e.RowIndex);
         var color = columnName == "Delete" ? UiTheme.Danger : UiTheme.Muted;
         if (!enabled)
@@ -2749,7 +2744,7 @@ public sealed class ModuleEditorControl : UserControl
             color = Color.FromArgb(70, color);
         }
 
-        PaintGridIconCell(_rulesGrid, e, icon, color);
+        PaintGridIconCell(e, columnName, color);
     }
 
     private void PaintRuleCommentCell(DataGridViewCellPaintingEventArgs e)
@@ -2763,23 +2758,7 @@ public sealed class ModuleEditorControl : UserControl
 
         var hasComment = !string.IsNullOrWhiteSpace(CellText(_rulesGrid.Rows[e.RowIndex], RuleCommentColumnName));
         var color = hasComment ? UiTheme.Accent : UiTheme.Muted;
-        var left = e.CellBounds.Left + (e.CellBounds.Width - 19f) / 2f;
-        var top = e.CellBounds.Top + (e.CellBounds.Height - 18f) / 2f;
-        var oldSmoothingMode = e.Graphics.SmoothingMode;
-        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-
-        using var outlinePen = new Pen(color, 1.5f);
-        using var detailPen = new Pen(color, 1.2f);
-        e.Graphics.DrawRectangle(outlinePen, left + 4.5f, top + 1.5f, 13f, 15f);
-        e.Graphics.DrawLine(detailPen, left + 7.5f, top + 2.5f, left + 7.5f, top + 15.5f);
-        e.Graphics.DrawLine(outlinePen, left + 1.5f, top + 5f, left + 6f, top + 5f);
-        e.Graphics.DrawLine(outlinePen, left + 1.5f, top + 9f, left + 6f, top + 9f);
-        e.Graphics.DrawLine(outlinePen, left + 1.5f, top + 13f, left + 6f, top + 13f);
-        e.Graphics.DrawLine(detailPen, left + 10f, top + 6f, left + 15f, top + 6f);
-        e.Graphics.DrawLine(detailPen, left + 10f, top + 9.5f, left + 15f, top + 9.5f);
-        e.Graphics.DrawLine(detailPen, left + 10f, top + 13f, left + 14f, top + 13f);
-        e.Graphics.SmoothingMode = oldSmoothingMode;
-        e.Handled = true;
+        PaintGridNamedIcon(e, "Comment", color);
     }
 
     private void OnRulesGridCellMouseEnter(object? sender, DataGridViewCellEventArgs e)
@@ -2873,7 +2852,8 @@ public sealed class ModuleEditorControl : UserControl
                 text,
                 metadata.SubConditions,
                 metadata.DelayMs,
-                metadata.LogicDelayMs);
+                metadata.LogicDelayMs,
+                metadata.ContinueLogic);
             if (text.Length == 0)
             {
                 return "点击编辑条件 (当前: 始终命中)";
@@ -2931,7 +2911,7 @@ public sealed class ModuleEditorControl : UserControl
             return;
         }
 
-        PaintGridIconCell(_adjustmentsGrid, e, "×", UiTheme.Danger);
+        PaintGridIconCell(e, "Delete", UiTheme.Danger);
     }
 
     private void OnFormulaAdjustmentsGridCellPainting(object? sender, DataGridViewCellPaintingEventArgs e)
@@ -2946,29 +2926,33 @@ public sealed class ModuleEditorControl : UserControl
             return;
         }
 
-        PaintGridIconCell(_formulaAdjustmentsGrid, e, "×", UiTheme.Danger);
+        PaintGridIconCell(e, "Delete", UiTheme.Danger);
     }
 
-    private static void PaintGridIconCell(DataGridView grid, DataGridViewCellPaintingEventArgs e, string icon, Color color)
+    private static void PaintGridIconCell(DataGridViewCellPaintingEventArgs e, string iconName, Color color)
     {
         e.Paint(e.CellBounds, DataGridViewPaintParts.Background | DataGridViewPaintParts.Border);
+        PaintGridNamedIcon(e, iconName, color);
+    }
+
+    private static void PaintGridNamedIcon(DataGridViewCellPaintingEventArgs e, string iconName, Color color)
+    {
         if (e.Graphics is null)
         {
             e.Handled = true;
             return;
         }
 
-        TextRenderer.DrawText(
-            e.Graphics,
-            icon,
-            grid.Font,
-            e.CellBounds,
-            color,
-            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+        var size = (int)Math.Round(Math.Max(16, Math.Min(e.CellBounds.Width, e.CellBounds.Height) - 10) * 0.7f);
+        UiIconCatalog.Draw(e.Graphics, iconName, new Rectangle(
+            e.CellBounds.Left + (e.CellBounds.Width - size) / 2,
+            e.CellBounds.Top + (e.CellBounds.Height - size) / 2,
+            size,
+            size), color);
         e.Handled = true;
     }
 
-    // 自绘 2×3 六点抓手, 不依赖字体里是否有 grip 字形; 新行不画。
+    // 新行不画拖拽抓手。
     private void PaintRuleDragHandle(DataGridViewCellPaintingEventArgs e)
     {
         e.Paint(e.CellBounds, DataGridViewPaintParts.Background | DataGridViewPaintParts.Border);
@@ -2978,19 +2962,8 @@ public sealed class ModuleEditorControl : UserControl
             return;
         }
 
-        var cx = e.CellBounds.Left + e.CellBounds.Width / 2;
-        var cy = e.CellBounds.Top + e.CellBounds.Height / 2;
         var color = _rulesGrid.Rows[e.RowIndex].Selected ? UiTheme.Text : UiTheme.Muted;
-        using var brush = new SolidBrush(color);
-        foreach (var x in new[] { cx - 4, cx })
-        {
-            foreach (var y in new[] { cy - 7, cy - 1, cy + 5 })
-            {
-                e.Graphics.FillEllipse(brush, x, y, 2, 2);
-            }
-        }
-
-        e.Handled = true;
+        PaintGridNamedIcon(e, "Drag", color);
     }
 
     private bool IsRuleIconEnabled(string columnName, int rowIndex)
@@ -3328,6 +3301,7 @@ public sealed class ModuleEditorControl : UserControl
             string.Empty,
             Array.Empty<string>(),
             null,
+            null,
             null));
     }
 
@@ -3543,7 +3517,8 @@ public sealed class ModuleEditorControl : UserControl
             // 子条件和延迟挂在 row.Tag, 随行一起被移动/拖拽/复制搬运。
             GetRuleMetadata(row).SubConditions,
             GetRuleMetadata(row).DelayMs,
-            GetRuleMetadata(row).LogicDelayMs);
+            GetRuleMetadata(row).LogicDelayMs,
+            GetRuleMetadata(row).ContinueLogic);
     }
 
     private void WriteRuleRow(DataGridViewRow row, RuleRowValues values)
@@ -3554,7 +3529,11 @@ public sealed class ModuleEditorControl : UserControl
         row.Cells["MacroCondition"].Value = string.Empty;
         row.Cells["Condition"].Value = values.Condition;
         row.Cells[RuleCommentColumnName].Value = values.Comment;
-        row.Tag = new RuleRowMetadata(values.SubConditions, values.DelayMs, values.LogicDelayMs);
+        row.Tag = new RuleRowMetadata(
+            values.SubConditions,
+            values.DelayMs,
+            values.LogicDelayMs,
+            values.ContinueLogic);
         RebuildUnitCell(row, values.UnitText);
         RebuildMacroConditionCell(row, values.MacroCondition);
     }
@@ -3575,6 +3554,7 @@ public sealed class ModuleEditorControl : UserControl
             allowSubConditions: true,
             delayMs: currentMetadata.DelayMs,
             logicDelayMs: currentMetadata.LogicDelayMs,
+            continueLogic: currentMetadata.ContinueLogic,
             allowRuleSettings: true,
             conditionFieldsProvider: () => RefreshAndBuildConditionFields(includeRuleSettings: true),
             spells: spells,
@@ -3593,20 +3573,22 @@ public sealed class ModuleEditorControl : UserControl
             if (!string.IsNullOrWhiteSpace(editor.ConditionText)
                 || subs.Count > 0
                 || editor.DelayMs is > 0
-                || editor.LogicDelayMs is > 0)
+                || editor.LogicDelayMs is > 0
+                || editor.ContinueLogic is true)
             {
                 var index = _rulesGrid.Rows.Add(true, null!, string.Empty, string.Empty, string.Empty, editor.ConditionText);
                 _rulesGrid.Rows[index].Tag = new RuleRowMetadata(
                     subs,
                     editor.DelayMs,
-                    editor.LogicDelayMs);
+                    editor.LogicDelayMs,
+                    editor.ContinueLogic);
             }
 
             return;
         }
 
         row.Cells["Condition"].Value = editor.ConditionText;
-        row.Tag = new RuleRowMetadata(subs, editor.DelayMs, editor.LogicDelayMs);
+        row.Tag = new RuleRowMetadata(subs, editor.DelayMs, editor.LogicDelayMs, editor.ContinueLogic);
         // 让「条件」列的装饰显示(主条件 且任一(…))立即刷新。
         _rulesGrid.InvalidateRow(rowIndex);
     }
@@ -3672,6 +3654,15 @@ public sealed class ModuleEditorControl : UserControl
                 ShigureConditionFields.LogicDelay,
                 "逻辑延迟 (ms)",
                 ConditionFieldType.Int,
+                ConditionFieldCategory.Shigure));
+        }
+
+        if (includeRuleSettings && seen.Add(ShigureConditionFields.ContinueLogic))
+        {
+            fields.Add(new ConditionField(
+                ShigureConditionFields.ContinueLogic,
+                "继续逻辑",
+                ConditionFieldType.Bool,
                 ConditionFieldCategory.Shigure));
         }
 
@@ -3948,7 +3939,8 @@ public sealed class ModuleEditorControl : UserControl
             _rulesGrid.Rows[index].Tag = new RuleRowMetadata(
                 rule.SubConditions,
                 rule.DelayMs,
-                rule.LogicDelayMs);
+                rule.LogicDelayMs,
+                rule.ContinueLogic);
             RebuildUnitCell(_rulesGrid.Rows[index], unitText);
             RebuildMacroConditionCell(_rulesGrid.Rows[index], rule.MacroCondition);
         }
@@ -4513,7 +4505,8 @@ public sealed class ModuleEditorControl : UserControl
                 && string.IsNullOrWhiteSpace(macroCondition)
                 && metadata.SubConditions.Count == 0
                 && metadata.DelayMs is not > 0
-                && metadata.LogicDelayMs is not > 0)
+                && metadata.LogicDelayMs is not > 0
+                && metadata.ContinueLogic is not true)
             {
                 continue;
             }
@@ -4537,7 +4530,8 @@ public sealed class ModuleEditorControl : UserControl
                 Step = string.Empty,
                 SubConditions = subs is { Count: > 0 } ? subs : null,
                 DelayMs = metadata.DelayMs,
-                LogicDelayMs = metadata.LogicDelayMs
+                LogicDelayMs = metadata.LogicDelayMs,
+                ContinueLogic = metadata.ContinueLogic
             });
         }
 

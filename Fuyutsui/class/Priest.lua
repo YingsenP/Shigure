@@ -184,10 +184,10 @@ Fuyutsui.ClassBlocks = {
         auras = {
             player = {
                 { name = "神圣化身", spellId = 200183, },
-                { name = "神圣镜像", spellId = 405216, },
+                { name = "神圣镜像", spellId = 405963, },
                 { name = "圣光涌动", spellId = 114255, maxApps = 2, },
                 { name = "祈福", spellId = 1262766, maxApps = 2, },
-                { name = "救赎之魂", spellId = 194384, },
+                { name = "救赎之魂", spellId = 27827, },
             },
             target = {
                 harmful = {

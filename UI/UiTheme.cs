@@ -351,32 +351,11 @@ internal static class UiTheme
             + iconGap;
         var top = clientBounds.Top + (clientBounds.Height - iconSize) / 2F;
 
-        var previousSmoothingMode = graphics.SmoothingMode;
-        graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using var pen = new Pen(color, 1.8F * scale)
-        {
-            StartCap = LineCap.Round,
-            EndCap = LineCap.Round,
-            LineJoin = LineJoin.Round
-        };
-
-        PointF Point(float x, float y) => new(left + (x * scale), top + (y * scale));
-
-        graphics.DrawLines(
-            pen,
-            [
-                Point(7, 2),
-                Point(4, 2),
-                Point(2, 4),
-                Point(2, 13),
-                Point(4, 15),
-                Point(13, 15),
-                Point(15, 13),
-                Point(15, 9)
-            ]);
-        graphics.DrawLine(pen, Point(8, 9), Point(15, 2));
-        graphics.DrawLines(pen, [Point(10, 2), Point(15, 2), Point(15, 7)]);
-        graphics.SmoothingMode = previousSmoothingMode;
+        UiIconCatalog.Draw(
+            graphics,
+            "ExternalLink",
+            new Rectangle((int)Math.Round(left), (int)Math.Round(top), (int)Math.Round(iconSize), (int)Math.Round(iconSize)),
+            color);
     }
 
     public static void ApplyControlRoundedRegion(Control control, int logicalRadius = 8)
@@ -1301,6 +1280,7 @@ internal static class UiTheme
                 foreach (DataGridViewColumn column in grid.Columns)
                 {
                     if (column.AutoSizeMode == DataGridViewAutoSizeColumnMode.Fill
+                        || column.Resizable == DataGridViewTriState.False
                         || !widths.TryGetValue(column.Name, out var width)
                         || width <= 0)
                     {
@@ -1321,6 +1301,7 @@ internal static class UiTheme
             if (isInitializing
                 || isApplying
                 || e.Column.AutoSizeMode == DataGridViewAutoSizeColumnMode.Fill
+                || e.Column.Resizable == DataGridViewTriState.False
                 || string.IsNullOrWhiteSpace(e.Column.Name))
             {
                 return;

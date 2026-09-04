@@ -24,6 +24,7 @@ public static class ShigureConditionFields
     // 仅供条件编辑器承载规则级配置，不会写入条件表达式参与状态求值。
     public const string Delay = "$shigure.delay";
     public const string LogicDelay = "$shigure.logicDelay";
+    public const string ContinueLogic = "$shigure.continueLogic";
 }
 
 public sealed record ConditionField(
