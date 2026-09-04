@@ -62,7 +62,7 @@ Fuyutsui.ClassMacros = {
     PALADIN = {
         dynamicSpells = {
             common = { "清毒术", "荣耀圣令" },
-            [1] = {},
+            [1] = { "圣光术", "圣光闪现", "神圣震击", "圣洁鸣钟", "圣疗术", "圣光道标" },
         },
         staticSpells = {
             "圣盾术",

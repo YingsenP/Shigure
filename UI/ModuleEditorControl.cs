@@ -882,17 +882,19 @@ public sealed class ModuleEditorControl : UserControl
             ReadOnly = true,
             SortMode = DataGridViewColumnSortMode.NotSortable
         });
-        _rulesGrid.Columns.Add(new DataGridViewButtonColumn
+        // 注释存在单元格 Value 里。必须用文本列（或按钮列且 UseColumnTextForButtonValue=false）：
+        // DataGridViewButtonCell.GetValue 在 UseColumnTextForButtonValue=true 时会返回列 Text（空串），
+        // 导致编辑器写入后读回仍是空的，保存模块时注释也会丢失。
+        _rulesGrid.Columns.Add(new DataGridViewTextBoxColumn
         {
             Name = RuleCommentColumnName,
             HeaderText = string.Empty,
-            Text = string.Empty,
-            UseColumnTextForButtonValue = true,
             Width = 32,
             MinimumWidth = 32,
             AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
             Resizable = DataGridViewTriState.False,
-            FlatStyle = FlatStyle.Flat
+            ReadOnly = true,
+            SortMode = DataGridViewColumnSortMode.NotSortable
         });
         _rulesGrid.Columns[RuleCommentColumnName]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
         AddRuleIconColumn("MoveUp", "▲", "上移 (Alt+↑)");
@@ -2724,11 +2726,7 @@ public sealed class ModuleEditorControl : UserControl
 
         if (columnName == RuleCommentColumnName)
         {
-            if (!_rulesGrid.Rows[e.RowIndex].IsNewRow)
-            {
-                PaintRuleCommentCell(e);
-            }
-
+            PaintRuleCommentCell(e);
             return;
         }
 
@@ -2750,7 +2748,7 @@ public sealed class ModuleEditorControl : UserControl
     private void PaintRuleCommentCell(DataGridViewCellPaintingEventArgs e)
     {
         e.Paint(e.CellBounds, DataGridViewPaintParts.Background | DataGridViewPaintParts.Border);
-        if (e.Graphics is null)
+        if (e.Graphics is null || e.RowIndex < 0 || _rulesGrid.Rows[e.RowIndex].IsNewRow)
         {
             e.Handled = true;
             return;
