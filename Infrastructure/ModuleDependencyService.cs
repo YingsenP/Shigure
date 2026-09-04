@@ -87,6 +87,12 @@ internal sealed class ModuleDependencyService
                     SpellId = entry.SpellId,
                     Index = entry.Index,
                     Name = entry.Name
+                }).ToList(),
+                ItemsList = configDocument.ItemsList.Select(entry => new ModuleItemListEntrySnapshot
+                {
+                    ItemId = entry.ItemId,
+                    Index = entry.Index,
+                    Name = entry.Name
                 }).ToList()
             },
             Macros = new ModuleMacrosSnapshot
@@ -172,6 +178,7 @@ internal sealed class ModuleDependencyService
         var counters = new MergeCounters();
         MergeSpec(localSpec, snapshot.Config.Spec, counters);
         MergeSpellsList(configDocument.SpellsList, snapshot.Config.SpellsList, counters);
+        MergeItemsList(configDocument.ItemsList, snapshot.Config.ItemsList, counters);
         MergeMacros(localMacros, snapshot.SpecId, snapshot.Macros, counters);
         EnsureMacroCapacity(snapshot.ClassId, localMacros);
 
@@ -268,6 +275,11 @@ internal sealed class ModuleDependencyService
         if ((snapshot.Config.SpellsList ?? []).Any(spell => !IsValidSpellId(spell.SpellId)))
         {
             throw new InvalidDataException("依赖快照包含缺少有效 spellId 的技能列表条目。");
+        }
+
+        if ((snapshot.Config.ItemsList ?? []).Any(item => !IsValidItemId(item.ItemId)))
+        {
+            throw new InvalidDataException("依赖快照包含缺少有效 itemId 的物品列表条目。");
         }
     }
 
@@ -720,25 +732,24 @@ internal sealed class ModuleDependencyService
         IReadOnlySet<string> reservedNames,
         MergeCounters counters)
     {
-        foreach (var item in incoming.OrderBy(item => item.ItemId))
+        CompactLocalItems(local, counters);
+
+        foreach (var item in incoming.OrderBy(entry => entry.ItemId))
         {
-            var byId = local.FirstOrDefault(existing => existing.ItemId == item.ItemId);
-            if (byId is not null)
+            if (!IsValidItemId(item.ItemId))
             {
-                if (!string.Equals(byId.Name, item.Name, StringComparison.Ordinal))
-                {
-                    counters.Conflicts.Add(
-                        $"物品 itemId {item.ItemId} 的名称不同：本地“{byId.Name}”、模块“{item.Name}”，已保留本地。");
-                }
-                else if (byId.IsEquipped != item.IsEquipped)
-                {
-                    counters.Conflicts.Add(
-                        $"物品“{item.Name}”的 isEquipped 不同：本地 {byId.IsEquipped}、模块 {item.IsEquipped}，已保留本地。");
-                }
                 continue;
             }
 
-            var byName = local.FirstOrDefault(existing => string.Equals(existing.Name, item.Name, StringComparison.Ordinal));
+            var byId = local.FirstOrDefault(existing => existing.ItemId == item.ItemId);
+            if (byId is not null)
+            {
+                MergeItemMetadata(byId, item, counters);
+                continue;
+            }
+
+            var byName = local.FirstOrDefault(existing =>
+                string.Equals(existing.Name, item.Name, StringComparison.Ordinal));
             if (byName is not null)
             {
                 counters.Conflicts.Add(
@@ -762,6 +773,74 @@ internal sealed class ModuleDependencyService
         }
 
         local.Sort((left, right) => (left.ItemId ?? long.MaxValue).CompareTo(right.ItemId ?? long.MaxValue));
+    }
+
+    private static void CompactLocalItems(
+        List<ClassBlocksStore.ItemEntry> local,
+        MergeCounters counters)
+    {
+        for (var index = 0; index < local.Count; index++)
+        {
+            var current = local[index];
+            if (current.ItemId is not > 0)
+            {
+                continue;
+            }
+
+            var existing = local.Take(index).FirstOrDefault(item => item.ItemId == current.ItemId);
+            if (existing is null)
+            {
+                continue;
+            }
+
+            MergeItemMetadata(existing, current, counters);
+            local.RemoveAt(index--);
+            counters.ConfigUpdated++;
+        }
+    }
+
+    private static void MergeItemMetadata(
+        ClassBlocksStore.ItemEntry target,
+        ModuleItemSnapshot incoming,
+        MergeCounters counters)
+        => MergeItemMetadataCore(target, incoming.Name, incoming.IsEquipped, counters);
+
+    private static void MergeItemMetadata(
+        ClassBlocksStore.ItemEntry target,
+        ClassBlocksStore.ItemEntry incoming,
+        MergeCounters counters)
+        => MergeItemMetadataCore(target, incoming.Name, incoming.IsEquipped, counters);
+
+    private static void MergeItemMetadataCore(
+        ClassBlocksStore.ItemEntry target,
+        string? incomingName,
+        bool incomingIsEquipped,
+        MergeCounters counters)
+    {
+        var changed = false;
+        if (!target.IsEquipped && incomingIsEquipped)
+        {
+            target.IsEquipped = true;
+            changed = true;
+        }
+
+        if (string.IsNullOrWhiteSpace(target.Name) && !string.IsNullOrWhiteSpace(incomingName))
+        {
+            target.Name = incomingName.Trim();
+            changed = true;
+        }
+        else if (!string.IsNullOrWhiteSpace(target.Name)
+                 && !string.IsNullOrWhiteSpace(incomingName)
+                 && !string.Equals(target.Name, incomingName.Trim(), StringComparison.Ordinal))
+        {
+            counters.Conflicts.Add(
+                $"物品 itemId {target.ItemId} 的名称不同：本地“{target.Name}”、模块“{incomingName.Trim()}”，已保留本地。");
+        }
+
+        if (changed)
+        {
+            counters.ConfigUpdated++;
+        }
     }
 
     private static void MergeSpellMetadata(
@@ -912,6 +991,8 @@ internal sealed class ModuleDependencyService
 
     private static bool IsValidSpellId(long spellId) => spellId > 0;
 
+    private static bool IsValidItemId(long itemId) => itemId > 0;
+
     private static string DisplayName(string? name, long? spellId)
         => string.IsNullOrWhiteSpace(name) ? spellId?.ToString() ?? "未命名" : name.Trim();
 
@@ -951,6 +1032,56 @@ internal sealed class ModuleDependencyService
         for (var index = 0; index < local.Count; index++)
         {
             if (seen.Add(local[index].SpellId))
+            {
+                continue;
+            }
+
+            local.RemoveAt(index--);
+            counters.ConfigUpdated++;
+        }
+    }
+
+    private static void MergeItemsList(
+        List<ClassBlocksStore.ItemsListEntry> local,
+        IEnumerable<ModuleItemListEntrySnapshot>? incoming,
+        MergeCounters counters)
+    {
+        CompactLocalItemsList(local, counters);
+
+        foreach (var entry in incoming ?? [])
+        {
+            if (!IsValidItemId(entry.ItemId))
+            {
+                continue;
+            }
+
+            var byId = local.FirstOrDefault(item => item.ItemId == entry.ItemId);
+            if (byId is not null)
+            {
+                // itemId 是跨模块稳定标识；索引是当前职业文件的本地编码。
+                // 同一 itemId 已存在时保留本地索引/名称，不因来源索引不同产生冲突。
+                continue;
+            }
+
+            local.Add(new ClassBlocksStore.ItemsListEntry
+            {
+                ItemId = entry.ItemId,
+                Index = entry.Index,
+                Name = entry.Name,
+                OriginalItemId = 0
+            });
+            counters.ConfigAdded++;
+        }
+    }
+
+    private static void CompactLocalItemsList(
+        List<ClassBlocksStore.ItemsListEntry> local,
+        MergeCounters counters)
+    {
+        var seen = new HashSet<long>();
+        for (var index = 0; index < local.Count; index++)
+        {
+            if (seen.Add(local[index].ItemId))
             {
                 continue;
             }

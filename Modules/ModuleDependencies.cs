@@ -25,11 +25,13 @@ public sealed class ModuleConfigSnapshot
 {
     public ModuleSpecSnapshot Spec { get; set; } = new();
     public List<ModuleSpellListEntrySnapshot> SpellsList { get; set; } = new();
+    public List<ModuleItemListEntrySnapshot> ItemsList { get; set; } = new();
 
     public ModuleConfigSnapshot Clone() => new()
     {
         Spec = Spec?.Clone() ?? new ModuleSpecSnapshot(),
-        SpellsList = (SpellsList ?? []).Where(entry => entry is not null).Select(entry => entry.Clone()).ToList()
+        SpellsList = (SpellsList ?? []).Where(entry => entry is not null).Select(entry => entry.Clone()).ToList(),
+        ItemsList = (ItemsList ?? []).Where(entry => entry is not null).Select(entry => entry.Clone()).ToList()
     };
 }
 
@@ -114,6 +116,15 @@ public sealed class ModuleSpellListEntrySnapshot
     public string Name { get; set; } = string.Empty;
 
     public ModuleSpellListEntrySnapshot Clone() => (ModuleSpellListEntrySnapshot)MemberwiseClone();
+}
+
+public sealed class ModuleItemListEntrySnapshot
+{
+    public long ItemId { get; set; }
+    public int Index { get; set; }
+    public string Name { get; set; } = string.Empty;
+
+    public ModuleItemListEntrySnapshot Clone() => (ModuleItemListEntrySnapshot)MemberwiseClone();
 }
 
 public sealed class ModuleGroupSnapshot
