@@ -73,11 +73,13 @@ function Fuyutsui:PLAYER_REGEN_DISABLED()
     self:RefreshTargetReactionState()
     state.combat = true
     state.combatStartTime = GetTime()
+    self:RefreshPlayerCombatDuration()
 end
 
 function Fuyutsui:PLAYER_REGEN_ENABLED()
     self:RefreshTargetReactionState()
     state.combat = false
+    self:RefreshPlayerCombatDuration()
 end
 
 function Fuyutsui:PLAYER_STARTED_MOVING()

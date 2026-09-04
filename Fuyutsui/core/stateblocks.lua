@@ -197,6 +197,10 @@ local stateBlockGetters = {
     },
     -- 职业特殊状态
     ["特殊"] = {
+        ["计时器"] = function() return state.timer or 0 end,
+        ["循环计时器"] = function() return state.loopTimer or 0 end,
+        ["战斗计时(秒)"] = function() return state.combatTimerSec or 0 end,
+        ["战斗计时(分)"] = function() return state.combatTimerMin or 0 end,
         ["酒池"] = function() return state.staggerPercent or 0 end,
         ["神圣军备"] = function() return state.holyArmaments or 0 end,
         ["吸血鬼打击"] = function() return state.VampiricStrike or 0 end,

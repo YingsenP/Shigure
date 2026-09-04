@@ -32,7 +32,7 @@ Shigure 是一个 Windows WinForms 桌面程序。它从目标窗口读取 Fuyut
 
 程序采用单实例运行；再次启动时会提示“Shigure 已经在运行”，随后退出新实例。
 
-当前版本：`1.2.1.22`
+当前版本：`1.2.1.23`
 
 ## 主要功能
 
@@ -193,7 +193,7 @@ Tools\                  辅助脚本
   "Name": "戒律",
   "Author": "模块作者",
   "RecommendedTalent": "推荐天赋代码或说明",
-  "Version": "1.2.1.17",
+  "Version": "1.2.1.23",
   "UnitMappingVersion": 3,
   "Enabled": true,
   "Match": {
