@@ -66,6 +66,7 @@ end
 function Fuyutsui:UNIT_PET(_, unit)
     if unit == "player" then
         self:RefreshPlayerPetState()
+        self:UpdateSpellKnown()
     end
 end
 
@@ -533,7 +534,7 @@ function Fuyutsui:OnUpdate(elapsed)
         self.timeElapsed1 = 0
     end
 
-    RunUpdateSafely(self, "RefreshPlayerCastStateBlocks")   
+    RunUpdateSafely(self, "RefreshPlayerCastStateBlocks")
     RunUpdateSafely(self, "RefreshUnitCastStateBlocks", "target")
     RunUpdateSafely(self, "RefreshUnitCastStateBlocks", "focus")
     RunUpdateSafely(self, "RefreshUnitCastStateBlocks", "mouseover")
